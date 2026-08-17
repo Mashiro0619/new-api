@@ -25,6 +25,7 @@ import type { NavGroup } from '@/components/layout/types'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CacheStatsDialog } from '@/features/system-settings/general/channel-affinity/cache-stats-dialog'
 import { useSidebarConfig } from '@/hooks/use-sidebar-config'
+import { cn } from '@/lib/utils'
 
 import { UserInfoDialog } from './components/dialogs/user-info-dialog'
 import {
@@ -151,7 +152,12 @@ function UsageLogsContent() {
                 </TabsList>
               </Tabs>
             )}
-            <div className='min-h-0 flex-1'>
+            <div
+              className={cn(
+                'min-h-0 flex-1',
+                activeCategory === 'common' && 'overflow-y-auto'
+              )}
+            >
               <UsageLogsTable logCategory={activeCategory} />
             </div>
           </div>

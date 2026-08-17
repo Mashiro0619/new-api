@@ -352,6 +352,14 @@ func TestCacheWriteTokensTotal(t *testing.T) {
 		}
 		require.Equal(t, 30, cacheWriteTokensTotal(summary))
 	})
+
+	t.Run("split cache creation saturates instead of wrapping", func(t *testing.T) {
+		summary := textQuotaSummary{
+			CacheCreationTokens5m: math.MaxInt,
+			CacheCreationTokens1h: 1,
+		}
+		require.Equal(t, math.MaxInt, cacheWriteTokensTotal(summary))
+	})
 }
 
 func TestCalculateTextQuotaSummaryHandlesLegacyClaudeDerivedOpenAIUsage(t *testing.T) {
@@ -387,6 +395,70 @@ func TestCalculateTextQuotaSummaryHandlesLegacyClaudeDerivedOpenAIUsage(t *testi
 
 	// 62 + 3544*0.1 + 586*1.25 + 95*5 = 1624.9 => 1624
 	require.Equal(t, 1624, summary.Quota)
+	metrics := buildTextTokenMetrics(relayInfo, usage, summary)
+	require.Equal(t, int64(62), metrics.InputTokens)
+	require.Equal(t, int64(95), metrics.OutputTokens)
+	require.Equal(t, int64(586), metrics.CacheCreationTokens)
+	require.Equal(t, int64(3544), metrics.CacheReadTokens)
+}
+
+func TestBuildTokenMetricsUsesStructuredUsageSemantics(t *testing.T) {
+	t.Run("legacy Claude-derived usage keeps separated input", func(t *testing.T) {
+		metrics := BuildTokenMetrics(nil, &dto.Usage{
+			PromptTokens:     62,
+			CompletionTokens: 95,
+			PromptTokensDetails: dto.InputTokenDetails{
+				CachedTokens:         3544,
+				CachedCreationTokens: 500,
+			},
+			ClaudeCacheCreation5mTokens: 586,
+		})
+
+		require.Equal(t, int64(62), metrics.InputTokens)
+		require.Equal(t, int64(95), metrics.OutputTokens)
+		require.Equal(t, int64(586), metrics.CacheCreationTokens)
+		require.Equal(t, int64(3544), metrics.CacheReadTokens)
+	})
+
+	t.Run("standard usage subtracts cache classes from total input", func(t *testing.T) {
+		metrics := BuildTokenMetrics(nil, &dto.Usage{
+			PromptTokens:     100,
+			CompletionTokens: 20,
+			UsageSemantic:    dto.BillingUsageSemanticOpenAI,
+			PromptTokensDetails: dto.InputTokenDetails{
+				CachedTokens:         30,
+				CachedCreationTokens: 10,
+			},
+			ClaudeCacheCreation5mTokens: 6,
+			ClaudeCacheCreation1hTokens: 5,
+		})
+
+		require.Equal(t, int64(59), metrics.InputTokens)
+		require.Equal(t, int64(11), metrics.CacheCreationTokens)
+		require.Equal(t, int64(30), metrics.CacheReadTokens)
+	})
+
+	t.Run("BillingUsage takes precedence over compatibility fields", func(t *testing.T) {
+		metrics := BuildTokenMetrics(nil, &dto.Usage{
+			PromptTokens:     999,
+			CompletionTokens: 999,
+			BillingUsage: dto.NewClaudeMessagesBillingUsage(&dto.ClaudeUsage{
+				InputTokens:              70,
+				OutputTokens:             7,
+				CacheCreationInputTokens: 20,
+				CacheReadInputTokens:     30,
+				CacheCreation: &dto.ClaudeCacheCreationUsage{
+					Ephemeral5mInputTokens: 12,
+					Ephemeral1hInputTokens: 8,
+				},
+			}),
+		})
+
+		require.Equal(t, int64(70), metrics.InputTokens)
+		require.Equal(t, int64(7), metrics.OutputTokens)
+		require.Equal(t, int64(20), metrics.CacheCreationTokens)
+		require.Equal(t, int64(30), metrics.CacheReadTokens)
+	})
 }
 
 func TestCalculateTextQuotaSummaryBillsOpenAICacheWriteTokens(t *testing.T) {

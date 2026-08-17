@@ -77,27 +77,23 @@ func (s *textQuotaSummary) hasBillableUsage() bool {
 }
 
 func cacheWriteTokensTotal(summary textQuotaSummary) int {
-	if summary.CacheCreationTokens5m > 0 || summary.CacheCreationTokens1h > 0 {
-		splitCacheWriteTokens := summary.CacheCreationTokens5m + summary.CacheCreationTokens1h
-		if summary.CacheCreationTokens > splitCacheWriteTokens {
-			return summary.CacheCreationTokens
-		}
-		return splitCacheWriteTokens
-	}
-	return summary.CacheCreationTokens
+	aggregate := max(summary.CacheCreationTokens, 0)
+	split := saturatingNonNegativeTokenSum(
+		summary.CacheCreationTokens5m,
+		summary.CacheCreationTokens1h,
+	)
+	return max(aggregate, split)
 }
 
-func isLegacyClaudeDerivedOpenAIUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) bool {
-	if relayInfo == nil || usage == nil {
-		return false
-	}
-	if relayInfo.GetFinalRequestRelayFormat() == types.RelayFormatClaude {
-		return false
-	}
-	if usage.UsageSource != "" || usage.UsageSemantic != "" {
-		return false
-	}
-	return usage.ClaudeCacheCreation5mTokens > 0 || usage.ClaudeCacheCreation1hTokens > 0
+func buildTextTokenMetrics(relayInfo *relaycommon.RelayInfo, usage *dto.Usage, summary textQuotaSummary) model.TokenMetrics {
+	return normalizeTokenMetricsForUsage(
+		relayInfo,
+		usage,
+		int64(summary.PromptTokens),
+		int64(summary.CompletionTokens),
+		int64(cacheWriteTokensTotal(summary)),
+		int64(summary.CacheTokens),
+	)
 }
 
 func collectToolSurchargeItem(items []ToolSurchargeItem, name string, count int, modelName string) []ToolSurchargeItem {
@@ -523,6 +519,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	attachQuotaSaturation(ctx, relayInfo, other)
 
+	tokenMetrics := buildTextTokenMetrics(relayInfo, billingUsage, summary)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     summary.PromptTokens,
@@ -536,6 +533,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		IsStream:         relayInfo.IsStream,
 		Group:            relayInfo.UsingGroup,
 		Other:            other,
+		TokenMetrics:     &tokenMetrics,
 	})
 	gopool.Go(func() {
 		perfmetrics.RecordRelaySample(relayInfo, true, int64(summary.CompletionTokens))

@@ -338,6 +338,7 @@ type RecordConsumeLogParams struct {
 	IsStream         bool                   `json:"is_stream"`
 	Group            string                 `json:"group"`
 	Other            map[string]interface{} `json:"other"`
+	TokenMetrics     *TokenMetrics          `json:"token_metrics,omitempty"`
 }
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
@@ -388,17 +389,30 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
 	if common.DataExportEnabled {
+		tokenMetrics := params.TokenMetrics
+		if tokenMetrics == nil && (params.PromptTokens != 0 || params.CompletionTokens != 0) {
+			fallbackMetrics := NormalizeTokenMetrics(
+				int64(params.PromptTokens),
+				int64(params.CompletionTokens),
+				0,
+				0,
+				false,
+			)
+			tokenMetrics = &fallbackMetrics
+		}
 		LogQuotaData(QuotaDataLogParams{
-			UserID:    userId,
-			Username:  username,
-			ModelName: params.ModelName,
-			Quota:     params.Quota,
-			CreatedAt: createdAt,
-			TokenUsed: params.PromptTokens + params.CompletionTokens,
-			UseGroup:  params.Group,
-			TokenID:   params.TokenId,
-			ChannelID: params.ChannelId,
-			NodeName:  common.NodeName,
+			UserID:       userId,
+			Username:     username,
+			ModelName:    params.ModelName,
+			Quota:        params.Quota,
+			CreatedAt:    createdAt,
+			TokenUsed:    params.PromptTokens + params.CompletionTokens,
+			UseGroup:     params.Group,
+			TokenID:      params.TokenId,
+			TokenName:    params.TokenName,
+			ChannelID:    params.ChannelId,
+			NodeName:     common.NodeName,
+			TokenMetrics: tokenMetrics,
 		})
 	}
 }
@@ -459,13 +473,14 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 			CreatedAt: createdAt,
 			UseGroup:  params.Group,
 			TokenID:   params.TokenId,
+			TokenName: tokenName,
 			ChannelID: params.ChannelId,
 			NodeName:  nodeName,
 		})
 	}
 }
 
-func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
+func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, userID int, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB
@@ -478,6 +493,9 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	}
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.username", username); err != nil {
 		return nil, 0, err
+	}
+	if userID > 0 {
+		tx = tx.Where("logs.user_id = ?", userID)
 	}
 	if tokenName != "" {
 		tx = tx.Where("logs.token_name = ?", tokenName)
@@ -615,7 +633,7 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
-func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
+func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, userID int, tokenName string, channel int, group string) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota")
 
 	// 为rpm和tpm创建单独的查询
@@ -626,6 +644,10 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	}
 	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "username", username); err != nil {
 		return stat, err
+	}
+	if userID > 0 {
+		tx = tx.Where("user_id = ?", userID)
+		rpmTpmQuery = rpmTpmQuery.Where("user_id = ?", userID)
 	}
 	if tokenName != "" {
 		tx = tx.Where("token_name = ?", tokenName)

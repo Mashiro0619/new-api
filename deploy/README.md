@@ -8,21 +8,16 @@
 
 ## GitHub 与 GHCR 首次配置
 
-1. 在 fork 的 GitHub `Actions` 页面启用工作流。首次启用后先不要创建 Git 标签。
-2. 立即分别打开并禁用原上游发布工作流：`docker-build.yml`、`docker-image-branch.yml`、`release.yml`、`sync-release-to-gitcode.yml` 和 `electron-build.yml`。保留这些文件，不修改或删除；继续启用 `ci.yml`、`pr-check.yml` 和自有的 `publish-ghcr.yml`。
-
-   也可以在已登录 GitHub CLI 后执行：
+1. 在 fork 的 GitHub `Actions` 页面启用 `publish-ghcr.yml`。首次启用后先不要创建 Git 标签。
+2. 手动运行一次 `publish-ghcr.yml`，或推送 `main` 触发它，确认 `ghcr.io/mashiro0619/new-api` 已生成 `linux/amd64` 和 `linux/arm64` 镜像。
+3. GHCR Package 保持私有。为服务器准备只具备 `read:packages` 权限的 GitHub Personal Access Token，并在服务器上执行：
 
    ```sh
-   gh auth login
-   for workflow in docker-build.yml docker-image-branch.yml release.yml sync-release-to-gitcode.yml electron-build.yml; do
-     gh workflow disable "$workflow" --repo Mashiro0619/new-api
-   done
+   docker login ghcr.io -u Mashiro0619
    ```
 
-3. 手动运行一次 `publish-ghcr.yml`，或在后续推送 `main` 时触发它，确认 `ghcr.io/mashiro0619/new-api` 已生成 `linux/amd64` 和 `linux/arm64` 镜像。
-4. 打开 GitHub 个人主页的 `Packages`，进入 `new-api`，在 `Package settings` 中将可见性改为 `Public`。公开后服务器无需保存 GitHub 用户名或 Token 即可拉取镜像。
-5. 用以下命令确认 `latest`、完整 SHA 和版本标签存在，并检查多架构清单。把 `<版本标签>` 替换为实际创建的 `v*` 标签：
+   在交互式密码提示中输入 Token。不要把 Token 直接写在命令行、脚本或仓库文件中。登录凭据由服务器上的 Docker 凭据存储管理。
+4. 用以下命令确认 `latest`、完整 SHA 和版本标签存在，并检查多架构清单。把 `<版本标签>` 替换为实际创建的 `v*` 标签：
 
    ```sh
    docker buildx imagetools inspect ghcr.io/mashiro0619/new-api:latest
@@ -42,7 +37,7 @@
      "$IMAGE@<DIGEST>"
    ```
 
-GHCR 发布使用仓库自带的 `GITHUB_TOKEN`。不要把 GitHub Token、服务器密码、`.env`、数据库转储、签名私钥或其他凭据提交到 Git。
+GHCR 发布使用工作流自带的 `GITHUB_TOKEN`；服务器拉取使用单独的只读 Token。不要把 GitHub Token、服务器密码、`.env`、数据库转储、签名私钥或其他凭据提交到 Git。
 
 ## 更新前备份
 
@@ -135,7 +130,7 @@ git remote add upstream https://github.com/QuantumNous/new-api.git
 git remote set-url --push upstream DISABLED
 ```
 
-日常同步在 `main` 上合并官方历史，不对已推送的公共分支做 rebase 或强制推送：
+日常同步在 `main` 上合并官方历史，不对已经推送的共享分支做 rebase 或强制推送：
 
 ```sh
 git fetch upstream
@@ -145,4 +140,4 @@ git merge --no-edit upstream/main
 git push origin main
 ```
 
-同步和二次开发必须保留所有与 `new-api`、`QuantumNous` 有关的项目身份、引用、品牌、元数据、归属信息，以及许可证、NOTICE、源码链接和版权声明。不得删除、替换或重命名这些受保护信息。
+同步和二次开发应继续遵守仓库中的 `LICENSE`、`NOTICE` 和第三方许可证要求，并在分发修改版本时保留依法要求的版权、许可、原项目链接和变更说明。

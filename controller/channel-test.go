@@ -494,6 +494,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	milliseconds := tok.Sub(tik).Milliseconds()
 	consumedTime := float64(milliseconds) / 1000.0
 	other := buildTestLogOther(c, info, priceData, usage, tieredResult)
+	tokenMetrics := service.BuildTokenMetrics(info, usage)
 	model.RecordConsumeLog(c, testUserID, model.RecordConsumeLogParams{
 		ChannelId:        channel.Id,
 		PromptTokens:     usage.PromptTokens,
@@ -506,6 +507,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		IsStream:         info.IsStream,
 		Group:            info.UsingGroup,
 		Other:            other,
+		TokenMetrics:     &tokenMetrics,
 	})
 	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
 	return testResult{

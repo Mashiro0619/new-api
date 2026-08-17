@@ -41,9 +41,7 @@ import { OverviewDashboard } from './components/overview/overview-dashboard'
 import { DEFAULT_TIME_GRANULARITY } from './constants'
 import {
   buildDefaultDashboardFilters,
-  getDefaultDays,
   getSavedChartPreferences,
-  getSavedGranularity,
   saveChartPreferences,
 } from './lib'
 import {
@@ -55,7 +53,6 @@ import type {
   DashboardChartPreferences,
   DashboardFilters,
   QuotaDataItem,
-  UserChartsFilters,
 } from './types'
 
 const route = getRouteApi('/_authenticated/dashboard/$section')
@@ -101,9 +98,9 @@ const LazyPerformanceOverview = lazy(() =>
   }))
 )
 
-const LazyUserCharts = lazy(() =>
-  import('./components/users/user-charts').then((m) => ({
-    default: m.UserCharts,
+const LazyAdminUserAnalytics = lazy(() =>
+  import('./components/users/admin-user-analytics').then((m) => ({
+    default: m.AdminUserAnalytics,
   }))
 )
 
@@ -205,16 +202,6 @@ export function Dashboard() {
     useState<DashboardChartPreferences>(() => getSavedChartPreferences())
   const [modelFilters, setModelFilters] = useState<DashboardFilters>(() =>
     buildDefaultDashboardFilters(getSavedChartPreferences())
-  )
-  const [userChartsFilters, setUserChartsFilters] = useState<UserChartsFilters>(
-    () => {
-      const granularity = getSavedGranularity()
-      return {
-        timeGranularity: granularity,
-        selectedRange: getDefaultDays(granularity),
-        topUserLimit: 10,
-      }
-    }
   )
   const [flowSensitiveVisible, setFlowSensitiveVisible] = useState(true)
 
@@ -393,10 +380,7 @@ export function Dashboard() {
           {activeSection === 'users' && (
             <FadeIn>
               <Suspense fallback={<ModelChartsFallback />}>
-                <LazyUserCharts
-                  filters={userChartsFilters}
-                  onFiltersChange={setUserChartsFilters}
-                />
+                <LazyAdminUserAnalytics />
               </Suspense>
             </FadeIn>
           )}

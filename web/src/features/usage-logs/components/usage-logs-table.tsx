@@ -18,7 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import { type ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef } from '@tanstack/react-table'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -27,6 +28,11 @@ import {
   DataTableRow,
   useDataTable,
 } from '@/components/data-table'
+import {
+  TokenTrendPanel,
+  type TokenTrendFilters,
+  type TokenTrendScope,
+} from '@/features/token-trend'
 import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { cn } from '@/lib/utils'
@@ -38,6 +44,11 @@ import {
 } from '../constants'
 import { useColumnsByCategory } from '../lib/columns'
 import { parseLogOther } from '../lib/format'
+import {
+  buildUsageLogTokenTrendFilters,
+  buildUsageLogTokenTrendScope,
+  shouldUseFixedUsageLogTable,
+} from '../lib/token-trend'
 import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
@@ -64,7 +75,12 @@ function getColumnVisibilityStorageKey(
 }
 
 function deserializeLogTypeFilter(value: unknown): unknown[] {
-  const values = Array.isArray(value) ? value : value ? [value] : []
+  let values: unknown[] = []
+  if (Array.isArray(value)) {
+    values = value
+  } else if (value) {
+    values = [value]
+  }
   return values.filter((item) => String(item) !== LOG_TYPE_ALL_VALUE)
 }
 
@@ -175,6 +191,14 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   })
 
   const isCommon = logCategory === 'common'
+  const tokenTrendScope = useMemo<TokenTrendScope>(
+    () => buildUsageLogTokenTrendScope(isAdmin, searchParams.username),
+    [isAdmin, searchParams.username]
+  )
+  const tokenTrendFilters = useMemo<TokenTrendFilters>(
+    () => buildUsageLogTokenTrendFilters(searchParams, tokenTrendScope),
+    [searchParams, tokenTrendScope]
+  )
 
   return (
     <DataTablePage
@@ -188,6 +212,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       )}
       skeletonKeyPrefix='usage-log-skeleton'
       applyHeaderSize
+      fixedHeight={shouldUseFixedUsageLogTable(logCategory)}
       tableClassName={cn(
         '[&_[data-slot=table]]:text-[13px] [&_[data-slot=table]_td]:text-[13px] [&_[data-slot=table]_td_*]:text-[13px] [&_[data-slot=table]_th]:text-[13px] [&_[data-slot=table]_th_*]:text-[13px]'
       )}
@@ -200,7 +225,13 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       }
       toolbar={
         isCommon ? (
-          <CommonLogsFilterBar table={table} />
+          <div className='flex flex-col gap-3'>
+            <CommonLogsFilterBar table={table} />
+            <TokenTrendPanel
+              scope={tokenTrendScope}
+              filters={tokenTrendFilters}
+            />
+          </div>
         ) : (
           <TaskLogsFilterBar table={table} logCategory={logCategory} />
         )

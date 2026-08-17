@@ -17,12 +17,36 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import z from 'zod'
 
 import { Dashboard } from '@/features/dashboard'
+import { canAccessDashboardSection } from '@/features/dashboard/lib/access'
 import {
-  DASHBOARD_SECTION_IDS,
   DASHBOARD_DEFAULT_SECTION,
+  DASHBOARD_SECTION_IDS,
+  type DashboardSectionId,
 } from '@/features/dashboard/section-registry'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
+
+const dashboardSearchSchema = z.object({
+  page: z.number().optional().catch(1),
+  filter: z.string().optional().catch(''),
+  status: z.string().optional().catch(''),
+  role: z.string().optional().catch(''),
+  group: z.string().optional().catch(''),
+  sortBy: z
+    .enum(['id', 'username', 'quota', 'group', 'created_at', 'last_login_at'])
+    .optional()
+    .catch('id'),
+  sortOrder: z.enum(['asc', 'desc']).optional().catch('desc'),
+  startTimestamp: z.number().optional().catch(undefined),
+  endTimestamp: z.number().optional().catch(undefined),
+  model: z.string().optional().catch(''),
+  token: z.string().optional().catch(''),
+  usageGroup: z.string().optional().catch(''),
+  channel: z.string().optional().catch(''),
+})
 
 export const Route = createFileRoute('/_authenticated/dashboard/$section')({
   beforeLoad: ({ params }) => {
@@ -33,6 +57,17 @@ export const Route = createFileRoute('/_authenticated/dashboard/$section')({
         params: { section: DASHBOARD_DEFAULT_SECTION },
       })
     }
+
+    const role = useAuthStore.getState().auth.user?.role ?? ROLE.GUEST
+    if (
+      !canAccessDashboardSection(params.section as DashboardSectionId, role)
+    ) {
+      throw redirect({
+        to: '/dashboard/$section',
+        params: { section: 'models' },
+      })
+    }
   },
+  validateSearch: dashboardSearchSchema,
   component: Dashboard,
 })

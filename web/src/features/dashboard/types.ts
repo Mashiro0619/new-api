@@ -27,10 +27,58 @@ export interface QuotaDataItem {
   user_id?: number
   username?: string
   model_name?: string
+  token_name?: string
+  use_group?: string
+  channel_id?: number
   created_at: number
   token_used?: number
   count?: number
   quota?: number
+}
+
+export interface DashboardUsageLog {
+  id: number
+  user_id: number
+  username?: string
+  created_at: number
+  type: number
+  model_name?: string
+  token_name?: string
+  group?: string
+  channel?: number
+  channel_name?: string
+  prompt_tokens?: number
+  completion_tokens?: number
+  quota?: number
+  use_time?: number
+  request_id?: string
+}
+
+export interface DashboardLogStatistics {
+  quota: number
+  rpm: number
+  tpm: number
+}
+
+export interface DashboardUserFilters {
+  startTimestamp: number
+  endTimestamp: number
+  model: string
+  token: string
+  group: string
+  channel: string
+}
+
+export interface DashboardAnalyticsUser {
+  id: number
+  username: string
+  display_name: string
+  role: number
+  status: number
+  group: string
+  used_quota: number
+  request_count: number
+  DeletedAt?: unknown | null
 }
 
 export interface FlowQuotaDataItem {

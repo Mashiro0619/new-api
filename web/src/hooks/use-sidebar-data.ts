@@ -36,8 +36,9 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { type SidebarData } from '@/components/layout/types'
+import type { SidebarData } from '@/components/layout/types'
 import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -47,6 +48,7 @@ import { ROLE } from '@/lib/roles'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const role = useAuthStore((state) => state.auth.user?.role ?? ROLE.GUEST)
 
   return {
     navGroups: [
@@ -77,7 +79,8 @@ export function useSidebarData(): SidebarData {
           },
           {
             title: t('Dashboard'),
-            url: '/dashboard/models',
+            url: role >= ROLE.ADMIN ? '/dashboard/users' : '/dashboard/models',
+            activeUrls: ['/dashboard'],
             icon: LayoutDashboard,
           },
           {

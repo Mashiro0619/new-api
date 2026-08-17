@@ -19,7 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 
 import type {
+  DashboardAnalyticsUser,
   FlowQuotaDataItem,
+  DashboardLogStatistics,
+  DashboardUsageLog,
   QuotaDataItem,
   UptimeGroupResult,
 } from './types'
@@ -40,6 +43,11 @@ export async function getUserQuotaDates(
     end_timestamp: number
     default_time?: string
     username?: string
+    user_id?: number
+    model_name?: string
+    token_name?: string
+    group?: string
+    channel?: number
   },
   isAdmin = false
 ) {
@@ -48,6 +56,51 @@ export async function getUserQuotaDates(
     endpoint,
     { params }
   )
+  return res.data
+}
+
+export async function getDashboardUser(userId: number) {
+  const res = await api.get<{
+    success: boolean
+    message?: string
+    data?: DashboardAnalyticsUser
+  }>(`/api/data/token-trend/users/${userId}`)
+  return res.data
+}
+
+export interface DashboardUserLogParams {
+  user_id: number
+  start_timestamp: number
+  end_timestamp: number
+  model_name?: string
+  token_name?: string
+  group?: string
+  channel?: number
+  type?: number
+}
+
+export async function getDashboardUserLogStats(params: DashboardUserLogParams) {
+  const res = await api.get<{
+    success: boolean
+    message?: string
+    data?: DashboardLogStatistics
+  }>('/api/log/stat', { params })
+  return res.data
+}
+
+export async function getDashboardUserLogs(
+  params: DashboardUserLogParams & { p: number; page_size: number }
+) {
+  const res = await api.get<{
+    success: boolean
+    message?: string
+    data?: {
+      items: DashboardUsageLog[]
+      total: number
+      page: number
+      page_size: number
+    }
+  }>('/api/log', { params })
   return res.data
 }
 

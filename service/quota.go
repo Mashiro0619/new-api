@@ -242,6 +242,13 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}
 	attachQuotaSaturation(ctx, relayInfo, other)
+	tokenMetrics := model.NormalizeTokenMetrics(
+		int64(usage.InputTokens),
+		int64(usage.OutputTokens),
+		int64(usage.InputTokenDetails.CacheCreationTokensTotal()),
+		int64(usage.InputTokenDetails.CachedTokens),
+		false,
+	)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     usage.InputTokens,
@@ -255,6 +262,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		IsStream:         relayInfo.IsStream,
 		Group:            relayInfo.UsingGroup,
 		Other:            other,
+		TokenMetrics:     &tokenMetrics,
 	})
 }
 
@@ -365,6 +373,13 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}
 	attachQuotaSaturation(ctx, relayInfo, other)
+	tokenMetrics := model.NormalizeTokenMetrics(
+		int64(usage.PromptTokens),
+		int64(usage.CompletionTokens),
+		int64(usage.PromptTokensDetails.CacheCreationTokensTotal()),
+		int64(usage.PromptTokensDetails.CachedTokens),
+		false,
+	)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     usage.PromptTokens,
@@ -378,6 +393,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		IsStream:         relayInfo.IsStream,
 		Group:            relayInfo.UsingGroup,
 		Other:            other,
+		TokenMetrics:     &tokenMetrics,
 	})
 	gopool.Go(func() {
 		perfmetrics.RecordRelaySample(relayInfo, true, int64(usage.CompletionTokens))
