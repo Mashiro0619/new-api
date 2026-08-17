@@ -110,6 +110,8 @@
 
 ### Using Docker Compose (Recommended)
 
+> Fork deployment note: this checkout includes a root `docker-compose.override.yml`, which Compose loads automatically. Running `docker-compose up -d` or `docker compose up -d` from the repository root uses `ghcr.io/mashiro0619/new-api:latest`. When passing `-f` explicitly, include both `docker-compose.yml` and `docker-compose.override.yml`.
+
 ```bash
 # Clone the project
 git clone https://github.com/QuantumNous/new-api.git

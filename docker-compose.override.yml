@@ -1,0 +1,3 @@
+services:
+  new-api:
+    image: "${FORK_IMAGE:-ghcr.io/mashiro0619/new-api}:${FORK_IMAGE_TAG:-latest}"
