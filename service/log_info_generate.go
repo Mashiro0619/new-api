@@ -111,11 +111,25 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	other["admin_info"] = adminInfo
 	appendRequestPath(ctx, relayInfo, other)
 	appendRequestConversionChain(relayInfo, other)
+	appendForcedOutboundInfo(relayInfo, other)
 	appendFinalRequestFormat(relayInfo, other)
 	appendBillingInfo(relayInfo, other)
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
 	return other
+}
+
+func appendForcedOutboundInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	if relayInfo == nil || relayInfo.ChannelMeta == nil || other == nil {
+		return
+	}
+	forcedFormat := relayInfo.AppliedForcedOutboundFormat
+	if forcedFormat == "" {
+		return
+	}
+	other["inbound_relay_format"] = string(relayInfo.RelayFormat)
+	other["forced_outbound_format"] = string(forcedFormat)
+	other["final_request_format"] = string(relayInfo.GetFinalRequestRelayFormat())
 }
 
 func appendParamOverrideInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {

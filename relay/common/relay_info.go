@@ -170,6 +170,10 @@ type RelayInfo struct {
 	// 最终请求到上游的格式。可由 adaptor 显式设置；
 	// 若为空，调用 GetFinalRequestRelayFormat 会回退到 RequestConversionChain 的最后一项或 RelayFormat。
 	FinalRequestRelayFormat types.RelayFormat
+	// AppliedForcedOutboundFormat is set only when the forced protocol wrapper
+	// is selected for this attempt. Channel settings alone are insufficient:
+	// non-text endpoints deliberately ignore the setting.
+	AppliedForcedOutboundFormat types.RelayFormat
 
 	StreamStatus *StreamStatus
 
@@ -234,7 +238,35 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	// Channel identity feeds the converter options snapshot (e.g.
 	// OpenRouterDialect); drop the cache so a cross-channel retry rebuilds it.
 	info.convOptions = nil
-	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || channelMeta.ChannelSetting.PassThroughBodyEnabled {
+	// All response/conversion state below belongs to one channel attempt. A
+	// retry must start clean or the previous channel can leak headers, usage,
+	// tool counters, stream state, or converter state into the next attempt.
+	info.ClaudeConvertInfo = nil
+	info.SendResponseCount = 0
+	info.ReceivedResponseCount = 0
+	info.DisablePing = false
+	info.RuntimeHeadersOverride = nil
+	info.UseRuntimeHeadersOverride = false
+	info.ParamOverrideAudit = nil
+	info.ThinkingContentInfo = ThinkingContentInfo{IsFirstThinkingContent: true}
+	info.StreamStatus = nil
+	info.ResponsesUsageInfo = newResponsesUsageInfo(info.Request)
+	c.Set("forced_outbound_response_started", false)
+	c.Set("claude_web_search_requests", 0)
+	c.Set("gemini_google_search_call", false)
+	common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "")
+	// Request conversion is channel-specific. A retry may select a channel with
+	// a different forced outbound protocol, so never carry the previous
+	// channel's conversion chain or final format into the next attempt.
+	info.RequestConversionChain = nil
+	info.FinalRequestRelayFormat = ""
+	info.AppliedForcedOutboundFormat = ""
+	info.InitRequestConversionChain()
+	forcedOutbound := common.ChannelTypeSupportsForcedOutboundFormat(
+		channelMeta.ChannelType,
+		channelMeta.ChannelSetting.ForcedOutboundFormat,
+	)
+	if !forcedOutbound && (model_setting.GetGlobalSettings().PassThroughRequestEnabled || channelMeta.ChannelSetting.PassThroughBodyEnabled) {
 		info.ReasoningEffort = ""
 	} else {
 		info.ReasoningEffort = reasoningEffortFromRequest(info.Request)
@@ -245,6 +277,29 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	if info.Request != nil {
 		info.Request.SetModelName(info.OriginModelName)
 	}
+}
+
+func newResponsesUsageInfo(request dto.Request) *ResponsesUsageInfo {
+	responsesRequest, ok := request.(*dto.OpenAIResponsesRequest)
+	if !ok || responsesRequest == nil {
+		return nil
+	}
+	usageInfo := &ResponsesUsageInfo{BuiltInTools: make(map[string]*BuildInToolInfo)}
+	for _, tool := range responsesRequest.GetToolsMap() {
+		toolType := common.Interface2String(tool["type"])
+		if toolType == "" {
+			continue
+		}
+		toolInfo := &BuildInToolInfo{ToolName: toolType}
+		if toolType == dto.BuildInToolWebSearchPreview {
+			toolInfo.SearchContextSize = common.Interface2String(tool["search_context_size"])
+			if toolInfo.SearchContextSize == "" {
+				toolInfo.SearchContextSize = "medium"
+			}
+		}
+		usageInfo.BuiltInTools[toolType] = toolInfo
+	}
+	return usageInfo
 }
 
 func (info *RelayInfo) ToString() string {
@@ -397,26 +452,7 @@ func GenRelayInfoResponses(c *gin.Context, request *dto.OpenAIResponsesRequest) 
 	info.RelayMode = relayconstant.RelayModeResponses
 	info.RelayFormat = types.RelayFormatOpenAIResponses
 
-	info.ResponsesUsageInfo = &ResponsesUsageInfo{
-		BuiltInTools: make(map[string]*BuildInToolInfo),
-	}
-	if len(request.Tools) > 0 {
-		for _, tool := range request.GetToolsMap() {
-			toolType := common.Interface2String(tool["type"])
-			info.ResponsesUsageInfo.BuiltInTools[toolType] = &BuildInToolInfo{
-				ToolName:  toolType,
-				CallCount: 0,
-			}
-			switch toolType {
-			case dto.BuildInToolWebSearchPreview:
-				searchContextSize := common.Interface2String(tool["search_context_size"])
-				if searchContextSize == "" {
-					searchContextSize = "medium"
-				}
-				info.ResponsesUsageInfo.BuiltInTools[toolType].SearchContextSize = searchContextSize
-			}
-		}
-	}
+	info.ResponsesUsageInfo = newResponsesUsageInfo(request)
 	return info
 }
 
@@ -977,6 +1013,18 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || channelPassThroughEnabled {
 		return jsonData, nil
 	}
+	return removeDisabledFields(jsonData, channelOtherSettings)
+}
+
+// RemoveDisabledFieldsForced applies the normal outbound safety filters even
+// when global or channel request-body pass-through is enabled. A forced
+// outbound protocol must serialize a newly converted body, so pass-through no
+// longer applies to that request.
+func RemoveDisabledFieldsForced(jsonData []byte, channelOtherSettings dto.ChannelOtherSettings) ([]byte, error) {
+	return removeDisabledFields(jsonData, channelOtherSettings)
+}
+
+func removeDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOtherSettings) ([]byte, error) {
 	if !hasRemovableDisabledField(jsonData, channelOtherSettings) {
 		return jsonData, nil
 	}

@@ -153,6 +153,7 @@ import { useChannelMutateForm } from '../../hooks/use-channel-mutate-form'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
   CHANNEL_TYPE_ADVANCED_CUSTOM,
+  FORCED_OUTBOUND_FORMAT_AUTO,
   channelFormSchema,
   channelsQueryKeys,
   getAdvancedCustomStats,
@@ -169,6 +170,8 @@ import {
   findMissingModelsInMapping,
   validateModelMappingJson,
   hasAdvancedSettingsErrors,
+  normalizeForcedOutboundFormat,
+  supportsForcedOutboundFormat,
 } from '../../lib'
 import {
   collectInvalidStatusCodeEntries,
@@ -285,6 +288,7 @@ const SENSITIVE_FORM_FIELDS = [
   'aws_key_type',
   'azure_responses_version',
   'force_format',
+  'forced_outbound_format',
   'thinking_to_content',
   'proxy',
   'http_protocol',
@@ -341,6 +345,8 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.proxy?.trim() ||
     values.system_prompt?.trim() ||
     values.force_format ||
+    (values.forced_outbound_format &&
+      values.forced_outbound_format !== FORCED_OUTBOUND_FORMAT_AUTO) ||
     values.thinking_to_content ||
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
@@ -747,6 +753,7 @@ export function ChannelMutateDrawer({
   const currentParamOverride = form.watch('param_override')
   const currentHeaderOverride = form.watch('header_override')
   const currentForceFormat = form.watch('force_format')
+  const currentForcedOutboundFormat = form.watch('forced_outbound_format')
   const currentThinkingToContent = form.watch('thinking_to_content')
   const currentPassThroughBodyEnabled = form.watch('pass_through_body_enabled')
   const currentDisableTaskPollingSleep = form.watch(
@@ -946,6 +953,49 @@ export function ChannelMutateDrawer({
     return options
   }, [currentType, t])
 
+  const forcedOutboundFormatItems = useMemo(
+    () => [
+      {
+        value: FORCED_OUTBOUND_FORMAT_AUTO,
+        label: t('Follow channel type'),
+      },
+      {
+        value: 'openai',
+        label: t('OpenAI Chat Completions'),
+      },
+      {
+        value: 'openai_responses',
+        label: t('OpenAI Responses'),
+      },
+      {
+        value: 'claude',
+        label: t('Anthropic Messages'),
+      },
+      {
+        value: 'gemini',
+        label: t('Gemini GenerateContent'),
+      },
+    ],
+    [t]
+  )
+  const forcedOutboundFormatSupported =
+    supportsForcedOutboundFormat(currentType)
+  const forcedOutboundFormatEnabled =
+    currentForcedOutboundFormat !== undefined &&
+    currentForcedOutboundFormat !== FORCED_OUTBOUND_FORMAT_AUTO
+  let forcedOutboundFormatDescription = t(
+    "Converts supported text requests to the selected upstream protocol and converts responses back to the client's incoming protocol. This setting overrides request body passthrough."
+  )
+  if (currentType === CHANNEL_TYPE_ADVANCED_CUSTOM) {
+    forcedOutboundFormatDescription = t(
+      'Advanced Custom channels should configure a converter for each route instead.'
+    )
+  } else if (!forcedOutboundFormatSupported) {
+    forcedOutboundFormatDescription = t(
+      'Forced outbound protocol is only supported for OpenAI and New API channels'
+    )
+  }
+
   const formErrors = form.formState.errors
   const identityHasErrors = Boolean(
     formErrors.name ||
@@ -1019,6 +1069,7 @@ export function ChannelMutateDrawer({
   )
   const extraSettingsConfigured = Boolean(
     currentForceFormat ||
+    forcedOutboundFormatEnabled ||
     currentThinkingToContent ||
     currentPassThroughBodyEnabled ||
     currentDisableTaskPollingSleep ||
@@ -1292,6 +1343,30 @@ export function ChannelMutateDrawer({
       }
     }
   }, [currentType, isEditing, form])
+
+  useEffect(() => {
+    if (
+      forcedOutboundFormatSupported ||
+      currentForcedOutboundFormat === undefined ||
+      currentForcedOutboundFormat === FORCED_OUTBOUND_FORMAT_AUTO
+    ) {
+      return
+    }
+
+    form.setValue('forced_outbound_format', FORCED_OUTBOUND_FORMAT_AUTO, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+  }, [currentForcedOutboundFormat, forcedOutboundFormatSupported, form])
+
+  useEffect(() => {
+    if (!forcedOutboundFormatEnabled || !currentPassThroughBodyEnabled) return
+
+    form.setValue('pass_through_body_enabled', false, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+  }, [currentPassThroughBodyEnabled, forcedOutboundFormatEnabled, form])
 
   useEffect(() => {
     if (currentType !== 45 || currentBaseUrl !== 'doubao-coding-plan') return
@@ -4073,6 +4148,86 @@ export function ChannelMutateDrawer({
                             className='space-y-4 disabled:opacity-60'
                           >
                             <div className='divide-border space-y-0 divide-y border-y'>
+                              <FormField
+                                control={form.control}
+                                name='forced_outbound_format'
+                                render={({ field }) => (
+                                  <FormItem className='px-4 py-3'>
+                                    <div className='space-y-0.5'>
+                                      <FormLabel>
+                                        {t('Force outbound protocol')}
+                                      </FormLabel>
+                                      <FormDescription>
+                                        {forcedOutboundFormatDescription}
+                                      </FormDescription>
+                                    </div>
+                                    <Select
+                                      items={forcedOutboundFormatItems}
+                                      value={
+                                        field.value ||
+                                        FORCED_OUTBOUND_FORMAT_AUTO
+                                      }
+                                      disabled={
+                                        sensitiveLocked ||
+                                        isSubmitting ||
+                                        !forcedOutboundFormatSupported
+                                      }
+                                      onValueChange={(value) => {
+                                        const nextFormat =
+                                          normalizeForcedOutboundFormat(value)
+                                        field.onChange(nextFormat)
+                                        if (
+                                          nextFormat !==
+                                          FORCED_OUTBOUND_FORMAT_AUTO
+                                        ) {
+                                          form.setValue(
+                                            'pass_through_body_enabled',
+                                            false,
+                                            {
+                                              shouldDirty: true,
+                                              shouldValidate: true,
+                                            }
+                                          )
+                                          form.clearErrors(
+                                            'pass_through_body_enabled'
+                                          )
+                                        }
+                                      }}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger
+                                          className='w-full sm:w-72'
+                                          disabled={
+                                            sensitiveLocked ||
+                                            isSubmitting ||
+                                            !forcedOutboundFormatSupported
+                                          }
+                                        >
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent
+                                        alignItemWithTrigger={false}
+                                      >
+                                        <SelectGroup>
+                                          {forcedOutboundFormatItems.map(
+                                            (item) => (
+                                              <SelectItem
+                                                key={item.value}
+                                                value={item.value}
+                                              >
+                                                {item.label}
+                                              </SelectItem>
+                                            )
+                                          )}
+                                        </SelectGroup>
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
                               {currentType === 1 && (
                                 <FormField
                                   control={form.control}
@@ -4085,7 +4240,7 @@ export function ChannelMutateDrawer({
                                         </FormLabel>
                                         <FormDescription>
                                           {t(
-                                            'Force format response to OpenAI standard (OpenAI channel only)'
+                                            'Legacy setting: repairs OpenAI response formatting only and does not change the outbound request protocol.'
                                           )}
                                         </FormDescription>
                                       </div>
@@ -4135,14 +4290,23 @@ export function ChannelMutateDrawer({
                                         {t('Pass Through Body')}
                                       </FormLabel>
                                       <FormDescription>
-                                        {t(
-                                          'Pass request body directly to upstream'
-                                        )}
+                                        {forcedOutboundFormatEnabled
+                                          ? t(
+                                              'Request body passthrough is disabled while a forced outbound protocol is selected.'
+                                            )
+                                          : t(
+                                              'Pass request body directly to upstream'
+                                            )}
                                       </FormDescription>
                                     </div>
                                     <FormControl>
                                       <Switch
-                                        checked={field.value}
+                                        checked={
+                                          forcedOutboundFormatEnabled
+                                            ? false
+                                            : field.value
+                                        }
+                                        disabled={forcedOutboundFormatEnabled}
                                         onCheckedChange={field.onChange}
                                       />
                                     </FormControl>
@@ -4175,6 +4339,16 @@ export function ChannelMutateDrawer({
                                 )}
                               />
                             </div>
+
+                            {forcedOutboundFormatEnabled && (
+                              <Alert>
+                                <AlertDescription>
+                                  {t(
+                                    'The upstream Base URL must support the selected standard path. Converting to Claude or Gemini may omit protocol-specific fields.'
+                                  )}
+                                </AlertDescription>
+                              </Alert>
+                            )}
 
                             <FormField
                               control={form.control}

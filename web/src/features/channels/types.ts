@@ -79,8 +79,15 @@ export type Channel = z.infer<typeof channelSchema>
 // Channel Settings Types
 // ============================================================================
 
+export type OutboundRelayFormat =
+  | 'openai'
+  | 'openai_responses'
+  | 'claude'
+  | 'gemini'
+
 export interface ChannelSettings {
   force_format?: boolean
+  forced_outbound_format?: OutboundRelayFormat
   thinking_to_content?: boolean
   proxy?: string
   pass_through_body_enabled?: boolean

@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -54,6 +55,16 @@ func insertPricingEndpointAbility(t *testing.T, channelID int, modelName string)
 		ChannelId: channelID,
 		Enabled:   true,
 	}).Error)
+}
+
+func setPricingEndpointForcedOutboundFormat(t *testing.T, channelID int, format types.RelayFormat) {
+	t.Helper()
+	var channel Channel
+	require.NoError(t, DB.First(&channel, "id = ?", channelID).Error)
+	settings := channel.GetSetting()
+	settings.ForcedOutboundFormat = format
+	channel.SetSetting(settings)
+	require.NoError(t, DB.Model(&Channel{}).Where("id = ?", channelID).Update("setting", channel.Setting).Error)
 }
 
 func pricingEndpointAdvancedCustomConfig(routes ...dto.AdvancedCustomRoute) dto.ChannelOtherSettings {
@@ -188,6 +199,56 @@ func TestPricingNativeChannelEndpointTypesUnchanged(t *testing.T) {
 	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeOpenAI}, byModel["gpt-4o"])
 	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeGemini, constant.EndpointTypeOpenAI}, byModel["gemini-2.5-flash"])
 	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeAnthropic, constant.EndpointTypeOpenAI}, byModel["claude-3-5-sonnet"])
+}
+
+func TestPricingForcedOutboundFormatAddsAllConvertibleTextEndpoints(t *testing.T) {
+	resetPricingEndpointTestTables(t)
+
+	insertPricingEndpointChannel(t, 211, constant.ChannelTypeOpenAI, dto.ChannelOtherSettings{})
+	setPricingEndpointForcedOutboundFormat(t, 211, types.RelayFormatGemini)
+	insertPricingEndpointAbility(t, 211, "gpt-4o")
+
+	byModel := pricingEndpointTypesByModel(t)
+
+	assert.Equal(t, []constant.EndpointType{
+		constant.EndpointTypeOpenAI,
+		constant.EndpointTypeOpenAIResponse,
+		constant.EndpointTypeAnthropic,
+		constant.EndpointTypeGemini,
+	}, byModel["gpt-4o"])
+}
+
+func TestPricingForcedOutboundFormatPreservesNewAPINativeEndpoints(t *testing.T) {
+	resetPricingEndpointTestTables(t)
+
+	insertPricingEndpointChannel(t, 212, constant.ChannelTypeNewAPI, dto.ChannelOtherSettings{})
+	setPricingEndpointForcedOutboundFormat(t, 212, types.RelayFormatClaude)
+	insertPricingEndpointAbility(t, 212, "gateway-model")
+
+	byModel := pricingEndpointTypesByModel(t)
+
+	assert.Equal(t, []constant.EndpointType{
+		constant.EndpointTypeOpenAI,
+		constant.EndpointTypeOpenAIResponse,
+		constant.EndpointTypeOpenAIResponseCompact,
+		constant.EndpointTypeAnthropic,
+		constant.EndpointTypeGemini,
+		constant.EndpointTypeOpenAIAlphaSearch,
+	}, byModel["gateway-model"])
+}
+
+func TestPricingForcedOutboundFormatDoesNotExpandUnsupportedChannelType(t *testing.T) {
+	resetPricingEndpointTestTables(t)
+
+	insertPricingEndpointChannel(t, 213, constant.ChannelTypeDeepSeek, dto.ChannelOtherSettings{})
+	setPricingEndpointForcedOutboundFormat(t, 213, types.RelayFormatClaude)
+	insertPricingEndpointAbility(t, 213, "deepseek-chat")
+
+	byModel := pricingEndpointTypesByModel(t)
+
+	assert.Equal(t, []constant.EndpointType{
+		constant.EndpointTypeOpenAI,
+	}, byModel["deepseek-chat"])
 }
 
 func TestInitChannelCacheInvalidatesPricingCache(t *testing.T) {

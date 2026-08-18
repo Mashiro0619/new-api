@@ -71,6 +71,18 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
+	if usage, handled, forcedErr := tryForcedOutbound(c, info, request); handled {
+		if forcedErr != nil {
+			return forcedErr
+		}
+		if strings.HasPrefix(info.OriginModelName, "gpt-4o-audio") {
+			service.PostAudioConsumeQuota(c, info, usage, "")
+		} else {
+			service.PostTextConsumeQuota(c, info, usage, nil)
+		}
+		return nil
+	}
+
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())

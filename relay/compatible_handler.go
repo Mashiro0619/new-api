@@ -64,6 +64,20 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 	info.ShouldIncludeUsage = includeUsage
 
+	if usage, handled, forcedErr := tryForcedOutbound(c, info, request); handled {
+		if forcedErr != nil {
+			return forcedErr
+		}
+		containAudioTokens := usage.CompletionTokenDetails.AudioTokens > 0 || usage.PromptTokensDetails.AudioTokens > 0
+		containsAudioRatios := ratio_setting.ContainsAudioRatio(info.OriginModelName) || ratio_setting.ContainsAudioCompletionRatio(info.OriginModelName)
+		if containAudioTokens && containsAudioRatios {
+			service.PostAudioConsumeQuota(c, info, usage, "")
+		} else {
+			service.PostTextConsumeQuota(c, info, usage, nil)
+		}
+		return nil
+	}
+
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())

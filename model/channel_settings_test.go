@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -87,6 +88,63 @@ func TestAdvancedCustomChannelRequiresModelListRouteOnlyWhenUpdateChecksEnabled(
 					Routes: tt.routes,
 				},
 			})
+
+			err := channel.ValidateSettings()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
+func TestChannelValidateSettingsForcedOutboundFormat(t *testing.T) {
+	tests := []struct {
+		name        string
+		channelType int
+		format      types.RelayFormat
+		wantErr     string
+	}{
+		{
+			name:        "OpenAI supports Gemini target",
+			channelType: constant.ChannelTypeOpenAI,
+			format:      types.RelayFormatGemini,
+		},
+		{
+			name:        "New API supports Claude target",
+			channelType: constant.ChannelTypeNewAPI,
+			format:      types.RelayFormatClaude,
+		},
+		{
+			name:        "empty target keeps legacy behavior",
+			channelType: constant.ChannelTypeDeepSeek,
+		},
+		{
+			name:        "unsupported enum is rejected",
+			channelType: constant.ChannelTypeOpenAI,
+			format:      types.RelayFormatOpenAIResponsesCompaction,
+			wantErr:     "invalid forced_outbound_format",
+		},
+		{
+			name:        "unsupported channel type is rejected",
+			channelType: constant.ChannelTypeDeepSeek,
+			format:      types.RelayFormatOpenAI,
+			wantErr:     "not supported for channel type DeepSeek",
+		},
+		{
+			name:        "Advanced Custom remains unsupported",
+			channelType: constant.ChannelTypeAdvancedCustom,
+			format:      types.RelayFormatGemini,
+			wantErr:     "not supported for channel type Advanced Custom",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			channel := &Channel{Type: tt.channelType}
+			channel.SetSetting(dto.ChannelSettings{ForcedOutboundFormat: tt.format})
 
 			err := channel.ValidateSettings()
 			if tt.wantErr == "" {

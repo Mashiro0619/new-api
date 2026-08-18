@@ -112,6 +112,14 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		}
 	}
 
+	if usage, handled, forcedErr := tryForcedOutbound(c, info, request); handled {
+		if forcedErr != nil {
+			return forcedErr
+		}
+		service.PostTextConsumeQuota(c, info, usage, nil)
+		return nil
+	}
+
 	if info.ChannelSetting.SystemPrompt != "" {
 		if request.System == nil {
 			request.SetStringSystem(info.ChannelSetting.SystemPrompt)

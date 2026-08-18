@@ -11,12 +11,13 @@ import (
 )
 
 type ChannelSettings struct {
-	ForceFormat            bool   `json:"force_format,omitempty"`
-	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
-	Proxy                  string `json:"proxy"`
-	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
-	SystemPrompt           string `json:"system_prompt,omitempty"`
-	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	ForceFormat            bool              `json:"force_format,omitempty"`
+	ThinkingToContent      bool              `json:"thinking_to_content,omitempty"`
+	Proxy                  string            `json:"proxy"`
+	PassThroughBodyEnabled bool              `json:"pass_through_body_enabled,omitempty"`
+	SystemPrompt           string            `json:"system_prompt,omitempty"`
+	SystemPromptOverride   bool              `json:"system_prompt_override,omitempty"`
+	ForcedOutboundFormat   types.RelayFormat `json:"forced_outbound_format,omitempty"`
 	// HTTPProtocol controls outbound HTTP version negotiation for this channel.
 	// Accepted values: "", "auto" (default), "http1".
 	HTTPProtocol string `json:"http_protocol,omitempty"`
@@ -30,6 +31,32 @@ const (
 	HTTPProtocolHTTP1        = "http1"
 	MaxHTTP2ConnectionShards = 8
 )
+
+// IsForcedOutboundFormatSupported reports whether relaykit can use format as
+// the target of the channel-level text protocol override.
+func IsForcedOutboundFormatSupported(format types.RelayFormat) bool {
+	switch format {
+	case types.RelayFormatOpenAI,
+		types.RelayFormatOpenAIResponses,
+		types.RelayFormatClaude,
+		types.RelayFormatGemini:
+		return true
+	default:
+		return false
+	}
+}
+
+// ValidateForcedOutboundFormat validates the protocol enum independently of
+// host channel types so relaykit remains usable as a standalone module.
+func (s *ChannelSettings) ValidateForcedOutboundFormat() error {
+	if s == nil || s.ForcedOutboundFormat == "" {
+		return nil
+	}
+	if !IsForcedOutboundFormatSupported(s.ForcedOutboundFormat) {
+		return fmt.Errorf("invalid forced_outbound_format: %s", s.ForcedOutboundFormat)
+	}
+	return nil
+}
 
 // ValidateHTTPTransport validates save-time HTTP transport channel settings.
 func (s *ChannelSettings) ValidateHTTPTransport() error {

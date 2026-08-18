@@ -968,6 +968,17 @@ func (channel *Channel) ValidateSettings() error {
 	if err := channelParams.ValidateHTTPTransport(); err != nil {
 		return err
 	}
+	if err := channelParams.ValidateForcedOutboundFormat(); err != nil {
+		return err
+	}
+	if channelParams.ForcedOutboundFormat != "" &&
+		!common.ChannelTypeSupportsForcedOutboundFormat(channel.Type, channelParams.ForcedOutboundFormat) {
+		return fmt.Errorf(
+			"forced_outbound_format %q is not supported for channel type %s",
+			channelParams.ForcedOutboundFormat,
+			constant.GetChannelTypeName(channel.Type),
+		)
+	}
 	channelOtherSettings := &dto.ChannelOtherSettings{}
 	if channel.OtherSettings != "" {
 		err := common.UnmarshalJsonStr(channel.OtherSettings, channelOtherSettings)

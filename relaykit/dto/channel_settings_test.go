@@ -527,6 +527,7 @@ func TestChannelSettingsHTTPTransportJSONRoundTrip(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(legacy), &settings))
 	assert.Equal(t, "http://127.0.0.1:8080", settings.Proxy)
 	assert.True(t, settings.ForceFormat)
+	assert.Empty(t, settings.ForcedOutboundFormat)
 	assert.Empty(t, settings.HTTPProtocol)
 	assert.Zero(t, settings.HTTP2ConnectionShards)
 
@@ -534,18 +535,22 @@ func TestChannelSettingsHTTPTransportJSONRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, string(encoded), "http_protocol")
 	assert.NotContains(t, string(encoded), "http2_connection_shards")
+	assert.NotContains(t, string(encoded), "forced_outbound_format")
 
 	explicit := ChannelSettings{
 		Proxy:                 "socks5://127.0.0.1:1080",
+		ForcedOutboundFormat:  types.RelayFormatOpenAIResponses,
 		HTTPProtocol:          HTTPProtocolHTTP1,
 		HTTP2ConnectionShards: 1,
 	}
 	encoded, err = json.Marshal(explicit)
 	require.NoError(t, err)
 	assert.Contains(t, string(encoded), `"http_protocol":"http1"`)
+	assert.Contains(t, string(encoded), `"forced_outbound_format":"openai_responses"`)
 
 	var decoded ChannelSettings
 	require.NoError(t, json.Unmarshal(encoded, &decoded))
+	assert.Equal(t, explicit.ForcedOutboundFormat, decoded.ForcedOutboundFormat)
 	assert.Equal(t, explicit.HTTPProtocol, decoded.HTTPProtocol)
 	assert.Equal(t, 1, decoded.HTTP2ConnectionShards)
 
@@ -554,6 +559,40 @@ func TestChannelSettingsHTTPTransportJSONRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(encoded), `"http2_connection_shards":4`)
 	assert.NotContains(t, string(encoded), "http_protocol")
+}
+
+func TestChannelSettingsValidateForcedOutboundFormat(t *testing.T) {
+	validFormats := []types.RelayFormat{
+		"",
+		types.RelayFormatOpenAI,
+		types.RelayFormatOpenAIResponses,
+		types.RelayFormatClaude,
+		types.RelayFormatGemini,
+	}
+	for _, format := range validFormats {
+		t.Run("valid_"+string(format), func(t *testing.T) {
+			settings := &ChannelSettings{ForcedOutboundFormat: format}
+			require.NoError(t, settings.ValidateForcedOutboundFormat())
+			if format != "" {
+				assert.True(t, IsForcedOutboundFormatSupported(format))
+			}
+		})
+	}
+
+	invalidFormats := []types.RelayFormat{
+		types.RelayFormatOpenAIResponsesCompaction,
+		types.RelayFormatEmbedding,
+		"unknown",
+	}
+	for _, format := range invalidFormats {
+		t.Run("invalid_"+string(format), func(t *testing.T) {
+			settings := &ChannelSettings{ForcedOutboundFormat: format}
+			err := settings.ValidateForcedOutboundFormat()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "forced_outbound_format")
+			assert.False(t, IsForcedOutboundFormatSupported(format))
+		})
+	}
 }
 
 func TestChannelSettingsValidateHTTPTransport(t *testing.T) {

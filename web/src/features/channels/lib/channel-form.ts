@@ -27,7 +27,7 @@ import {
   MODEL_FETCHABLE_TYPES,
   OPENAI_FIELD_PASSTHROUGH_TYPES,
 } from '../constants'
-import type { Channel } from '../types'
+import type { Channel, OutboundRelayFormat } from '../types'
 import {
   CHANNEL_TYPE_ADVANCED_CUSTOM,
   advancedCustomConfigUsesRelativeUpstreamPath,
@@ -76,6 +76,41 @@ function isOptionalProxyURL(value: string | undefined): boolean {
 export const HTTP_PROTOCOL_AUTO = 'auto'
 export const HTTP_PROTOCOL_HTTP1 = 'http1'
 export const MAX_HTTP2_CONNECTION_SHARDS = 8
+export const FORCED_OUTBOUND_FORMAT_AUTO = 'auto'
+export const FORCED_OUTBOUND_FORMATS = [
+  'openai',
+  'openai_responses',
+  'claude',
+  'gemini',
+] as const satisfies readonly OutboundRelayFormat[]
+export type ForcedOutboundFormat =
+  | typeof FORCED_OUTBOUND_FORMAT_AUTO
+  | OutboundRelayFormat
+
+const FORCED_OUTBOUND_FORMAT_VALUES = [
+  FORCED_OUTBOUND_FORMAT_AUTO,
+  ...FORCED_OUTBOUND_FORMATS,
+] as const
+const FORCED_OUTBOUND_SUPPORTED_CHANNEL_TYPES = new Set([
+  1,
+  CHANNEL_TYPE_NEW_API,
+])
+
+export function supportsForcedOutboundFormat(channelType: number): boolean {
+  return FORCED_OUTBOUND_SUPPORTED_CHANNEL_TYPES.has(channelType)
+}
+
+export function normalizeForcedOutboundFormat(
+  value: unknown
+): ForcedOutboundFormat {
+  if (
+    typeof value === 'string' &&
+    FORCED_OUTBOUND_FORMAT_VALUES.includes(value as ForcedOutboundFormat)
+  ) {
+    return value as ForcedOutboundFormat
+  }
+  return FORCED_OUTBOUND_FORMAT_AUTO
+}
 
 export function normalizeHttpProtocol(
   value: string | undefined | null
@@ -254,6 +289,7 @@ export const channelFormSchema = z
     key_mode: z.enum(['append', 'replace']).optional(), // For editing multi-key channels
     // Channel extra settings (stored in setting JSON, not sent directly)
     force_format: z.boolean().optional(),
+    forced_outbound_format: z.enum(FORCED_OUTBOUND_FORMAT_VALUES).optional(),
     thinking_to_content: z.boolean().optional(),
     proxy: z
       .string()
@@ -284,6 +320,16 @@ export const channelFormSchema = z
     upstream_model_update_ignored_models: z.string().optional(),
   })
   .superRefine((data, ctx) => {
+    const hasForcedOutboundFormat =
+      data.forced_outbound_format !== undefined &&
+      data.forced_outbound_format !== FORCED_OUTBOUND_FORMAT_AUTO
+    if (hasForcedOutboundFormat && !supportsForcedOutboundFormat(data.type)) {
+      addRequiredIssue(
+        ctx,
+        'forced_outbound_format',
+        'Forced outbound protocol is only supported for OpenAI and New API channels'
+      )
+    }
     if (
       [3, 8, 36, 45, CHANNEL_TYPE_NEW_API].includes(data.type) &&
       !data.base_url?.trim()
@@ -429,6 +475,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   key_mode: 'append',
   // Channel extra settings
   force_format: false,
+  forced_outbound_format: FORCED_OUTBOUND_FORMAT_AUTO,
   thinking_to_content: false,
   proxy: '',
   http_protocol: HTTP_PROTOCOL_AUTO,
@@ -469,6 +516,7 @@ export function transformChannelToFormDefaults(
   // Parse channel extra settings from setting field
   let extraSettings = {
     force_format: false,
+    forced_outbound_format: FORCED_OUTBOUND_FORMAT_AUTO as ForcedOutboundFormat,
     thinking_to_content: false,
     proxy: '',
     http_protocol: HTTP_PROTOCOL_AUTO as 'auto' | 'http1',
@@ -485,13 +533,19 @@ export function transformChannelToFormDefaults(
       const shards = normalizeHttp2ConnectionShards(
         parsed.http2_connection_shards
       )
+      const forcedOutboundFormat = supportsForcedOutboundFormat(channel.type)
+        ? normalizeForcedOutboundFormat(parsed.forced_outbound_format)
+        : FORCED_OUTBOUND_FORMAT_AUTO
       extraSettings = {
         force_format: parsed.force_format || false,
+        forced_outbound_format: forcedOutboundFormat,
         thinking_to_content: parsed.thinking_to_content || false,
         proxy: parsed.proxy || '',
         http_protocol: protocol,
         http2_connection_shards: protocol === HTTP_PROTOCOL_HTTP1 ? 1 : shards,
-        pass_through_body_enabled: parsed.pass_through_body_enabled || false,
+        pass_through_body_enabled:
+          forcedOutboundFormat === FORCED_OUTBOUND_FORMAT_AUTO &&
+          parsed.pass_through_body_enabled === true,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
       }
@@ -604,13 +658,22 @@ export function transformChannelToFormDefaults(
  * Build the setting JSON string from form extra settings
  */
 export function buildSettingJSON(formData: ChannelFormValues): string {
+  const forcedOutboundFormat = normalizeForcedOutboundFormat(
+    formData.forced_outbound_format
+  )
   const settingObj: Record<string, unknown> = {
     force_format: formData.force_format || false,
     thinking_to_content: formData.thinking_to_content || false,
     proxy: formData.proxy?.trim() || '',
-    pass_through_body_enabled: formData.pass_through_body_enabled || false,
+    pass_through_body_enabled:
+      forcedOutboundFormat === FORCED_OUTBOUND_FORMAT_AUTO &&
+      formData.pass_through_body_enabled === true,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
+  }
+
+  if (forcedOutboundFormat !== FORCED_OUTBOUND_FORMAT_AUTO) {
+    settingObj.forced_outbound_format = forcedOutboundFormat
   }
 
   const protocol = normalizeHttpProtocol(formData.http_protocol)

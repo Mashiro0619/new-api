@@ -108,13 +108,27 @@ func GetModelSupportEndpointTypes(model string) []constant.EndpointType {
 }
 
 func getPricingEndpointTypesForAbility(ability AbilityWithChannel, advancedCustomConfigs map[int]*dto.AdvancedCustomConfig) []constant.EndpointType {
+	var endpointTypes []constant.EndpointType
 	if ability.ChannelType != constant.ChannelTypeAdvancedCustom {
-		return common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
+		endpointTypes = common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
+	} else if config := advancedCustomConfigs[ability.ChannelId]; config != nil {
+		endpointTypes = config.SupportedEndpointTypesForModel(ability.Model)
+	} else {
+		endpointTypes = common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
 	}
-	if config := advancedCustomConfigs[ability.ChannelId]; config != nil {
-		return config.SupportedEndpointTypesForModel(ability.Model)
+
+	if ability.ChannelSetting == nil || strings.TrimSpace(*ability.ChannelSetting) == "" {
+		return endpointTypes
 	}
-	return common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
+	var settings dto.ChannelSettings
+	if err := common.Unmarshal([]byte(*ability.ChannelSetting), &settings); err != nil {
+		return endpointTypes
+	}
+	return common.AddForcedOutboundEndpointTypes(
+		endpointTypes,
+		ability.ChannelType,
+		settings.ForcedOutboundFormat,
+	)
 }
 
 // loadPricingAdvancedCustomConfigs runs inside updatePricing while
