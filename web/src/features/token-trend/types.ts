@@ -41,6 +41,7 @@ export interface TokenTrendFilters {
 export interface TokenTrendMetrics {
   input_tokens: number
   output_tokens: number
+  consumed_quota: number
   cache_creation_tokens: number
   cache_read_tokens: number
   cache_hit_rate: number | null

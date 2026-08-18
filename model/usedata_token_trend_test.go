@@ -94,23 +94,23 @@ func TestGetTokenTrendExcludesLegacyRowsAndFillsMeasuredRange(t *testing.T) {
 	rows := []QuotaData{
 		{
 			UserID: 1, Username: "alice", ModelName: "legacy", CreatedAt: 3600,
-			Count: 10, TokenUsed: 1000,
+			Count: 10, TokenUsed: 1000, Quota: 5000,
 		},
 		{
 			UserID: 1, Username: "alice", ModelName: "gpt-a", TokenName: "primary",
 			UseGroup: "vip", ChannelID: 11, CreatedAt: 7200,
 			InputTokens: 100, OutputTokens: 20, CacheCreationTokens: 10,
-			CacheReadTokens: 50, TokenMetricsCount: 2,
+			CacheReadTokens: 50, TokenMetricsCount: 2, Quota: 120,
 		},
 		{
 			UserID: 1, Username: "alice", ModelName: "gpt-a", TokenName: "primary",
 			UseGroup: "vip", ChannelID: 11, CreatedAt: 14400,
-			InputTokens: 40, OutputTokens: 10, TokenMetricsCount: 1,
+			InputTokens: 40, OutputTokens: 10, TokenMetricsCount: 1, Quota: 30,
 		},
 		{
 			UserID: 2, Username: "bob", ModelName: "gpt-a", TokenName: "primary",
 			UseGroup: "vip", ChannelID: 11, CreatedAt: 7200,
-			InputTokens: 999, OutputTokens: 999, TokenMetricsCount: 1,
+			InputTokens: 999, OutputTokens: 999, TokenMetricsCount: 1, Quota: 999,
 		},
 	}
 	require.NoError(t, DB.Create(&rows).Error)
@@ -132,6 +132,7 @@ func TestGetTokenTrendExcludesLegacyRowsAndFillsMeasuredRange(t *testing.T) {
 	require.Len(t, trend.Points, 3)
 	assert.Equal(t, int64(7200), trend.Points[0].Timestamp)
 	assert.Equal(t, int64(100), trend.Points[0].InputTokens)
+	assert.Equal(t, int64(120), trend.Points[0].ConsumedQuota)
 	assert.Equal(t, int64(2), trend.Points[0].TrackedRequests)
 	require.NotNil(t, trend.Points[0].CacheHitRate)
 	assert.InDelta(t, 100.0/3.0, *trend.Points[0].CacheHitRate, 0.0001)
@@ -142,6 +143,7 @@ func TestGetTokenTrendExcludesLegacyRowsAndFillsMeasuredRange(t *testing.T) {
 	assert.Equal(t, int64(14400), trend.Points[2].Timestamp)
 	assert.Equal(t, int64(140), trend.Totals.InputTokens)
 	assert.Equal(t, int64(30), trend.Totals.OutputTokens)
+	assert.Equal(t, int64(150), trend.Totals.ConsumedQuota)
 	assert.Equal(t, int64(10), trend.Totals.CacheCreationTokens)
 	assert.Equal(t, int64(50), trend.Totals.CacheReadTokens)
 	assert.Equal(t, int64(3), trend.Totals.TrackedRequests)
@@ -152,10 +154,10 @@ func TestGetTokenTrendExcludesLegacyRowsAndFillsMeasuredRange(t *testing.T) {
 func TestGetTokenTrendDailyAggregationAndEmptyLegacyData(t *testing.T) {
 	truncateTables(t)
 	require.NoError(t, DB.Create(&[]QuotaData{
-		{UserID: 1, Username: "alice", CreatedAt: 3600, TokenMetricsCount: 1, InputTokens: 10},
-		{UserID: 1, Username: "alice", CreatedAt: 7200, TokenMetricsCount: 1, InputTokens: 20},
-		{UserID: 1, Username: "alice", CreatedAt: 90000, TokenMetricsCount: 1, InputTokens: 30},
-		{UserID: 2, Username: "legacy", CreatedAt: 3600, Count: 1, TokenUsed: 50},
+		{UserID: 1, Username: "alice", CreatedAt: 3600, TokenMetricsCount: 1, InputTokens: 10, Quota: 15},
+		{UserID: 1, Username: "alice", CreatedAt: 7200, TokenMetricsCount: 1, InputTokens: 20, Quota: 25},
+		{UserID: 1, Username: "alice", CreatedAt: 90000, TokenMetricsCount: 1, InputTokens: 30, Quota: 35},
+		{UserID: 2, Username: "legacy", CreatedAt: 3600, Count: 1, TokenUsed: 50, Quota: 5000},
 	}).Error)
 
 	trend, err := GetTokenTrend(TokenTrendQuery{
@@ -167,7 +169,10 @@ func TestGetTokenTrendDailyAggregationAndEmptyLegacyData(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, trend.Points, 2)
 	assert.Equal(t, int64(30), trend.Points[0].InputTokens)
+	assert.Equal(t, int64(40), trend.Points[0].ConsumedQuota)
 	assert.Equal(t, int64(30), trend.Points[1].InputTokens)
+	assert.Equal(t, int64(35), trend.Points[1].ConsumedQuota)
+	assert.Equal(t, int64(75), trend.Totals.ConsumedQuota)
 
 	legacy, err := GetTokenTrend(TokenTrendQuery{
 		StartTimestamp: 1,
@@ -332,6 +337,7 @@ func TestLogQuotaDataPersistsTokenMetrics(t *testing.T) {
 	assert.Equal(t, int64(10), row.CacheCreationTokens)
 	assert.Equal(t, int64(32), row.CacheReadTokens)
 	assert.Equal(t, int64(2), row.TokenMetricsCount)
+	assert.Equal(t, 30, row.Quota)
 }
 
 func TestAdminLogQueriesFilterByStableUserID(t *testing.T) {

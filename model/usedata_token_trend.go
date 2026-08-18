@@ -32,6 +32,7 @@ type TokenTrendQuery struct {
 type TokenTrendMetrics struct {
 	InputTokens         int64    `json:"input_tokens"`
 	OutputTokens        int64    `json:"output_tokens"`
+	ConsumedQuota       int64    `json:"consumed_quota"`
 	CacheCreationTokens int64    `json:"cache_creation_tokens"`
 	CacheReadTokens     int64    `json:"cache_read_tokens"`
 	CacheHitRate        *float64 `json:"cache_hit_rate"`
@@ -70,6 +71,7 @@ type tokenTrendDatabaseRow struct {
 	CreatedAt           int64 `gorm:"column:created_at"`
 	InputTokens         int64 `gorm:"column:input_tokens"`
 	OutputTokens        int64 `gorm:"column:output_tokens"`
+	ConsumedQuota       int64 `gorm:"column:consumed_quota"`
 	CacheCreationTokens int64 `gorm:"column:cache_creation_tokens"`
 	CacheReadTokens     int64 `gorm:"column:cache_read_tokens"`
 	TrackedRequests     int64 `gorm:"column:tracked_requests"`
@@ -196,6 +198,7 @@ func tokenTrendCacheHitRate(inputTokens, cacheReadTokens int64) *float64 {
 func addTokenTrendMetrics(target *TokenTrendMetrics, source tokenTrendDatabaseRow) {
 	target.InputTokens += source.InputTokens
 	target.OutputTokens += source.OutputTokens
+	target.ConsumedQuota += source.ConsumedQuota
 	target.CacheCreationTokens += source.CacheCreationTokens
 	target.CacheReadTokens += source.CacheReadTokens
 	target.TrackedRequests += source.TrackedRequests
@@ -255,7 +258,7 @@ func GetTokenTrend(query TokenTrendQuery) (TokenTrendData, error) {
 
 	rows := make([]tokenTrendDatabaseRow, 0)
 	err = baseQuery.
-		Select("created_at, sum(input_tokens) as input_tokens, sum(output_tokens) as output_tokens, sum(cache_creation_tokens) as cache_creation_tokens, sum(cache_read_tokens) as cache_read_tokens, sum(token_metrics_count) as tracked_requests").
+		Select("created_at, sum(input_tokens) as input_tokens, sum(output_tokens) as output_tokens, sum(quota) as consumed_quota, sum(cache_creation_tokens) as cache_creation_tokens, sum(cache_read_tokens) as cache_read_tokens, sum(token_metrics_count) as tracked_requests").
 		Where("created_at >= ? and created_at < ?", startBucket, endExclusive).
 		Group("created_at").
 		Order("created_at ASC").

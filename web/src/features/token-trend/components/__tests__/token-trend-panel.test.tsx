@@ -20,12 +20,18 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
+import { formatQuota } from '@/lib/format'
+
 import { getTokenTrend } from '../../api'
 import type { TokenTrendData, TokenTrendFilters } from '../../types'
 import { TokenTrendPanel } from '../token-trend-panel'
 
 vi.mock('../../api', () => ({
   getTokenTrend: vi.fn(),
+}))
+
+vi.mock('@/lib/format', () => ({
+  formatQuota: vi.fn((quota: number) => `余额 ${quota}`),
 }))
 
 const baseFilters: TokenTrendFilters = {
@@ -36,6 +42,7 @@ const baseFilters: TokenTrendFilters = {
 const emptyMetrics = {
   input_tokens: 0,
   output_tokens: 0,
+  consumed_quota: 0,
   cache_creation_tokens: 0,
   cache_read_tokens: 0,
   cache_hit_rate: null,
@@ -135,6 +142,37 @@ describe('TokenTrendPanel states', () => {
 
     expect(await screen.findByText('50%')).toBeVisible()
     expect(screen.queryByText('5,000%')).not.toBeInTheDocument()
+  })
+
+  test('shows consumed balance instead of cache creation in the summary', async () => {
+    vi.mocked(getTokenTrend).mockResolvedValue({
+      available: true,
+      reason: '',
+      tracking_started_at: baseFilters.startTimestamp,
+      start_timestamp: baseFilters.startTimestamp,
+      end_timestamp: baseFilters.endTimestamp,
+      granularity: 'hour',
+      totals: {
+        ...emptyMetrics,
+        consumed_quota: 345,
+        tracked_requests: 1,
+      },
+      points: [
+        {
+          timestamp: baseFilters.startTimestamp,
+          ...emptyMetrics,
+          consumed_quota: 345,
+          tracked_requests: 1,
+        },
+      ],
+    })
+
+    renderPanel()
+
+    expect(await screen.findByText('消耗余额')).toBeVisible()
+    expect(screen.getByText('余额 345')).toBeVisible()
+    expect(formatQuota).toHaveBeenCalledWith(345)
+    expect(screen.queryByText('Cache Creation')).not.toBeInTheDocument()
   })
 
   test('shows a recoverable error state when the request fails', async () => {

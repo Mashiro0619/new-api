@@ -39,6 +39,7 @@ import {
   ChartTooltipContent,
 } from '@/components/ui/chart'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { getTokenTrend } from '../api'
@@ -58,7 +59,7 @@ const METRIC_CONFIG = {
     color: 'var(--chart-2)',
     swatchClassName: 'bg-chart-2',
   },
-  cache_creation_tokens: {
+  consumed_quota: {
     color: 'var(--chart-4)',
     swatchClassName: 'bg-chart-4',
   },
@@ -73,6 +74,14 @@ const METRIC_CONFIG = {
 } as const
 
 type MetricKey = keyof typeof METRIC_CONFIG
+type ChartMetricKey = Exclude<MetricKey, 'consumed_quota'>
+
+const CHART_METRIC_KEYS: ChartMetricKey[] = [
+  'input_tokens',
+  'output_tokens',
+  'cache_read_tokens',
+  'cache_hit_rate',
+]
 
 function TokenTrendSkeleton() {
   return (
@@ -120,6 +129,9 @@ function formatMetricValue(
   if (rawValue == null) return '--'
   if (key === 'cache_hit_rate') {
     return percentFormatter.format(rawValue / 100)
+  }
+  if (key === 'consumed_quota') {
+    return formatQuota(rawValue)
   }
   return numberFormatter.format(rawValue)
 }
@@ -270,7 +282,7 @@ function TokenTrendChart(props: {
             />
           }
         />
-        {(Object.keys(METRIC_CONFIG) as MetricKey[]).map((key) => (
+        {CHART_METRIC_KEYS.map((key) => (
           <Line
             key={key}
             dataKey={key}
@@ -358,9 +370,9 @@ export function TokenTrendPanel(props: TokenTrendPanelProps) {
         label: t('Output Tokens'),
         color: METRIC_CONFIG.output_tokens.color,
       },
-      cache_creation_tokens: {
-        label: t('Cache Creation'),
-        color: METRIC_CONFIG.cache_creation_tokens.color,
+      consumed_quota: {
+        label: t('消耗余额'),
+        color: METRIC_CONFIG.consumed_quota.color,
       },
       cache_read_tokens: {
         label: t('Cache Read'),
@@ -450,7 +462,7 @@ export function TokenTrendPanel(props: TokenTrendPanelProps) {
           {t('Token Usage Trend')}
         </CardTitle>
         <CardDescription>
-          {t('Input, output, and cache token usage over time.')}
+          {t('查看输入、输出、消耗余额和缓存使用趋势。')}
         </CardDescription>
         {query.data?.available && (
           <div className='text-muted-foreground mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs'>
@@ -476,9 +488,7 @@ export function TokenTrendPanel(props: TokenTrendPanelProps) {
       <CardContent>{content}</CardContent>
       <span className='sr-only'>
         {query.data?.available && query.data.points.length > 0
-          ? t(
-              'Token trend includes input, output, cache creation, cache read, and cache hit rate.'
-            )
+          ? t('趋势包含输入、输出、消耗余额、缓存读取和缓存命中率。')
           : ''}
       </span>
     </Card>
