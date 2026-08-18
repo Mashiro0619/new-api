@@ -50,6 +50,7 @@ export interface PublicHeaderProps {
   navContent?: React.ReactNode
   showThemeSwitch?: boolean
   showLanguageSwitcher?: boolean
+  showBrand?: boolean
   logo?: React.ReactNode
   siteName?: string
   homeUrl?: string
@@ -66,6 +67,7 @@ export function PublicHeader(props: PublicHeaderProps) {
     navLinks = defaultTopNavLinks,
     showThemeSwitch = true,
     showLanguageSwitcher = true,
+    showBrand = true,
     logo: customLogo,
     siteName: customSiteName,
     homeUrl = '/',
@@ -97,6 +99,50 @@ export function PublicHeader(props: PublicHeaderProps) {
   const isAuthenticated = !!user
   const displaySiteName = customSiteName || systemName
   const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
+
+  let brandVisual: React.ReactNode
+  if (loading) {
+    brandVisual = <Skeleton className='size-full rounded-lg' />
+  } else if (customLogo) {
+    brandVisual = customLogo
+  } else {
+    brandVisual = (
+      <HeaderLogo
+        src={systemLogo}
+        loading={loading}
+        logoLoaded={logoLoaded}
+        className='size-full rounded-lg object-contain'
+      />
+    )
+  }
+
+  let authControl: React.ReactNode
+  if (loading) {
+    authControl = <Skeleton className='h-8 w-20 rounded-lg' />
+  } else if (isAuthenticated) {
+    authControl = <ProfileDropdown />
+  } else {
+    authControl = (
+      <Button
+        size='sm'
+        className='h-8 rounded-lg px-3.5 text-xs font-medium'
+        render={<Link to='/sign-in' />}
+      >
+        {t('Sign in')}
+      </Button>
+    )
+  }
+
+  let headerContainerClass: string
+  if (!showBrand) {
+    headerContainerClass = scrolled
+      ? 'max-w-7xl px-6 pt-3'
+      : 'max-w-7xl px-6 pt-0'
+  } else if (scrolled) {
+    headerContainerClass = 'max-w-[52rem] px-3 pt-3'
+  } else {
+    headerContainerClass = 'max-w-7xl px-4 pt-0 md:px-6'
+  }
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20)
@@ -179,49 +225,47 @@ export function PublicHeader(props: PublicHeaderProps) {
         <div
           className={cn(
             'pointer-events-auto mx-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
-            scrolled ? 'max-w-[52rem] px-3 pt-3' : 'max-w-7xl px-4 pt-0 md:px-6'
+            headerContainerClass,
+            props.className
           )}
         >
           <nav
             className={cn(
               'flex items-center justify-between transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
+              !showBrand && 'ml-auto w-fit',
               scrolled
                 ? 'bg-background/60 ring-border/50 h-12 rounded-2xl pr-1.5 pl-4 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08),0_0_0_0.5px_rgba(0,0,0,0.02)] ring-[0.5px] backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]'
                 : 'h-16 px-2'
             )}
           >
             {/* Logo */}
-            <Link
-              to={homeUrl}
-              className='group flex shrink-0 items-center gap-2.5'
-            >
-              <div className='flex size-7 shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-105'>
-                {loading ? (
-                  <Skeleton className='size-full rounded-lg' />
-                ) : customLogo ? (
-                  customLogo
-                ) : (
-                  <HeaderLogo
-                    src={systemLogo}
-                    loading={loading}
-                    logoLoaded={logoLoaded}
-                    className='size-full rounded-lg object-contain'
-                  />
-                )}
-              </div>
-              <span className='text-sm font-semibold tracking-tight'>
-                {loading ? <Skeleton className='h-4 w-16' /> : displaySiteName}
-              </span>
-            </Link>
+            {showBrand && (
+              <Link
+                to={homeUrl}
+                className='group flex shrink-0 items-center gap-2.5'
+              >
+                <div className='flex size-7 shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-105'>
+                  {brandVisual}
+                </div>
+                <span className='text-sm font-semibold tracking-tight'>
+                  {loading ? (
+                    <Skeleton className='h-4 w-16' />
+                  ) : (
+                    displaySiteName
+                  )}
+                </span>
+              </Link>
+            )}
 
             {/* Desktop nav */}
             <div className='hidden items-center gap-0.5 sm:flex'>
-              {links.map((link, i) => {
+              {links.map((link) => {
                 const isActive = pathname === link.href
+                const linkKey = `${link.href}-${link.title}`
                 if (link.external) {
                   return (
                     <a
-                      key={i}
+                      key={linkKey}
                       href={link.href}
                       target='_blank'
                       rel='noopener noreferrer'
@@ -239,7 +283,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                 }
                 return (
                   <Link
-                    key={i}
+                    key={linkKey}
                     to={link.href}
                     disabled={link.disabled}
                     onClick={(event) => handleNavLinkClick(event, link)}
@@ -280,19 +324,7 @@ export function PublicHeader(props: PublicHeaderProps) {
               {showAuthButtons && (
                 <>
                   <div className='bg-border/40 mx-1 h-4 w-px' />
-                  {loading ? (
-                    <Skeleton className='h-8 w-20 rounded-lg' />
-                  ) : isAuthenticated ? (
-                    <ProfileDropdown />
-                  ) : (
-                    <Button
-                      size='sm'
-                      className='h-8 rounded-lg px-3.5 text-xs font-medium'
-                      render={<Link to='/sign-in' />}
-                    >
-                      {t('Sign in')}
-                    </Button>
-                  )}
+                  {authControl}
                 </>
               )}
             </div>
@@ -350,6 +382,7 @@ export function PublicHeader(props: PublicHeaderProps) {
           <nav className='flex flex-col gap-1'>
             {links.map((link, i) => {
               const isActive = pathname === link.href
+              const linkKey = `${link.href}-${link.title}`
               const linkClassName = cn(
                 'flex items-center gap-3 py-3 text-base font-medium tracking-tight transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]',
                 mobileOpen
@@ -364,7 +397,7 @@ export function PublicHeader(props: PublicHeaderProps) {
               if (link.external) {
                 return (
                   <a
-                    key={i}
+                    key={linkKey}
                     href={link.href}
                     target='_blank'
                     rel='noopener noreferrer'
@@ -380,7 +413,7 @@ export function PublicHeader(props: PublicHeaderProps) {
               }
               return (
                 <Link
-                  key={i}
+                  key={linkKey}
                   to={link.href}
                   disabled={link.disabled}
                   onClick={(event) => handleNavLinkClick(event, link, true)}

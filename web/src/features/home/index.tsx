@@ -16,25 +16,67 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Link } from '@tanstack/react-router'
 import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PublicLayout } from '@/components/layout'
-import { Footer } from '@/components/layout/components/footer'
 import { RichContent } from '@/components/rich-content'
 import { useTheme } from '@/context/theme-provider'
+import { UserAuthForm } from '@/features/auth/sign-in/components/user-auth-form'
+import { useStatus } from '@/hooks/use-status'
 import { isLikelyHtml } from '@/lib/content-format'
-import { useAuthStore } from '@/stores/auth-store'
 
-import { CTA, Features, Hero, HowItWorks, Stats } from './components'
 import { useHomePageContent } from './hooks'
+
+function DefaultHome() {
+  const { t } = useTranslation()
+  const { status } = useStatus()
+  const canRegister =
+    !status?.self_use_mode_enabled && status?.register_enabled !== false
+
+  return (
+    <PublicLayout
+      showMainContainer={false}
+      showAuthButtons={false}
+      headerProps={{ showBrand: false }}
+    >
+      <main className='flex min-h-svh items-center pt-16'>
+        <div className='mx-auto grid w-full max-w-7xl items-center gap-14 px-6 py-16 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] lg:gap-24'>
+          <h1 className='text-center text-[clamp(3.5rem,7vw,7rem)] leading-[0.9] font-semibold tracking-[-0.06em] lg:text-left'>
+            <span className='whitespace-nowrap'>Mashiro AI</span>
+            <span className='block whitespace-nowrap lg:inline'>中转站</span>
+          </h1>
+          <section className='w-full max-w-md justify-self-end'>
+            <div className='mb-6 space-y-2'>
+              <h2 className='text-2xl font-semibold tracking-tight'>
+                {t('Sign in')}
+              </h2>
+              {canRegister && (
+                <p className='text-muted-foreground text-sm sm:text-base'>
+                  {t("Don't have an account?")}{' '}
+                  <Link
+                    to='/sign-up'
+                    className='hover:text-primary font-medium underline underline-offset-4'
+                  >
+                    {t('Sign up')}
+                  </Link>
+                  .
+                </p>
+              )}
+            </div>
+            <UserAuthForm />
+          </section>
+        </div>
+      </main>
+    </PublicLayout>
+  )
+}
 
 export function Home() {
   const { i18n, t } = useTranslation()
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const { resolvedTheme } = useTheme()
-  const { auth } = useAuthStore()
-  const isAuthenticated = !!auth.user
   const { content, isLoaded, isUrl } = useHomePageContent()
 
   const syncIframePreferences = useCallback(() => {
@@ -59,13 +101,7 @@ export function Home() {
   }, [isUrl, syncIframePreferences])
 
   if (!isLoaded) {
-    return (
-      <PublicLayout showMainContainer={false}>
-        <main className='flex min-h-screen items-center justify-center'>
-          <div className='text-muted-foreground'>{t('Loading...')}</div>
-        </main>
-      </PublicLayout>
-    )
+    return <DefaultHome />
   }
 
   if (content) {
@@ -120,14 +156,5 @@ export function Home() {
     )
   }
 
-  return (
-    <PublicLayout showMainContainer={false}>
-      <Hero isAuthenticated={isAuthenticated} />
-      <Stats />
-      <Features />
-      <HowItWorks />
-      <CTA isAuthenticated={isAuthenticated} />
-      <Footer />
-    </PublicLayout>
-  )
+  return <DefaultHome />
 }
