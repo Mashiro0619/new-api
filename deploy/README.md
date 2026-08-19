@@ -4,7 +4,12 @@
 
 更新脚本需要 Docker Compose v2、`jq` 和 `sed`；服务器应先安装这些命令并确认 Docker daemon 可访问。
 
-默认镜像为 `ghcr.io/mashiro0619/new-api:latest`。可通过 `FORK_IMAGE` 更换镜像仓库，通过 `FORK_IMAGE_TAG` 更换标签。生产环境应使用发布工作流生成的不可变 `sha-<完整提交哈希>` 标签，不建议直接部署会移动的 `latest`。
+默认镜像为 `ghcr.io/mashiro0619/new-api:latest`。可通过 `FORK_IMAGE` 更换镜像仓库，通过 `FORK_IMAGE_TAG` 更换标签。
+
+日常更新推荐使用 `latest` 标签，简化更新流程。不可变 `sha-<完整提交哈希>` 标签仍由发布工作流生成，可用于首次接管、回滚演练、审计或需要固定版本的场景；但它不是日常更新的必需步骤。
+
+> [!IMPORTANT]
+> `deploy/update.sh` 固定读取仓库根目录的 `docker-compose.yml` 和 `docker-compose.override.yml`（脚本内硬编码这两个路径，不支持通过参数指定自定义 Compose 文件）。因此该脚本只适用于直接使用仓库自带 Compose 的部署。如果生产环境使用独立的 `compose.yaml` 和自定义覆盖文件（例如服务器上的 `.deploy/new-api.fork.override.yml`），**不要直接调用 `deploy/update.sh`**，应使用下文「生产环境独立 Compose 部署」一节的双 `-f` 命令。
 
 ## GitHub 与 GHCR 首次配置
 
@@ -66,23 +71,23 @@ docker inspect --format '{{.Name}} {{range .Mounts}}{{.Type}}={{.Source}}->{{.De
 
 ## 首次接管现有部署
 
-脚本要求 Compose 项目中已经存在 `new-api` 容器，适用于把当前服务器从上游镜像切换到自有镜像。它会从脚本位置自动找到仓库根目录的 `docker-compose.yml`，因此可以从任意工作目录调用。
+脚本要求 Compose 项目中已经存在 `new-api` 容器，适用于把当前服务器从上游镜像切换到自有镜像。它会从脚本位置自动找到仓库根目录的 `docker-compose.yml`，因此可以从任意工作目录调用。**该脚本只适用于直接使用仓库自带 Compose 的部署**；生产环境若使用独立 Compose 文件，请改用「生产环境独立 Compose 部署」一节。
 
 先查看合并后的配置。输出中 `new-api` 的镜像应改变，PostgreSQL、Redis、数据卷、网络、端口和环境变量应与原配置一致：
 
 ```sh
 FORK_IMAGE=ghcr.io/mashiro0619/new-api \
-FORK_IMAGE_TAG=sha-<完整提交哈希> \
+FORK_IMAGE_TAG=latest \
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.override.yml \
   config
 ```
 
-备份完成后，用明确的 SHA 标签接管：
+备份完成后，用 `latest` 接管（如需固定到可审计的版本，可改传 `sha-<完整提交哈希>`）：
 
 ```sh
-sh deploy/update.sh sha-<完整提交哈希>
+sh deploy/update.sh latest
 ```
 
 脚本会校验 Docker、Compose 和合并配置，记录旧容器的镜像引用、镜像 ID 及 OCI revision，只拉取并以 `--no-deps` 重建 `new-api`，等待原 Compose 中的健康检查，再从新容器内部检查 `/api/status`。它不会重启 PostgreSQL 或 Redis。
@@ -91,17 +96,20 @@ sh deploy/update.sh sha-<完整提交哈希>
 
 ## 日常更新与回滚
 
-日常更新同样先备份，再传入发布工作流生成的完整 SHA 标签：
+日常更新同样先备份，再用 `latest` 拉取并重建（仅适用于仓库自带 Compose 的部署）：
 
 ```sh
-sh deploy/update.sh sha-<新版本完整提交哈希>
+sh deploy/update.sh latest
 ```
 
-如需主动回滚到仍在 GHCR 中的旧版本，传入上一个不可变标签：
+如需固定到可审计的版本或主动回滚到仍在 GHCR 中的旧版本，传入对应的不可变 SHA 标签：
 
 ```sh
-sh deploy/update.sh sha-<旧版本完整提交哈希>
+sh deploy/update.sh sha-<完整提交哈希>
 ```
+
+> [!NOTE]
+> `latest` 标签会随每次推送 `main` 移动，因此更新前应记录当前镜像的 digest 或 revision（脚本启动时会打印 `Current image ID` 和 `Current revision`），并保留数据库备份，以便在需要时回滚。若未来需要一键回滚，可在服务器本地保留旧镜像 digest，或临时改用 SHA 标签流程。
 
 更新失败时，脚本会打印一条可直接执行的精确回滚命令。该命令把更新前的本地镜像 ID 标记为临时 `rollback-<时间>` 标签，然后只用 `--no-deps` 重建 `new-api`。脚本不会自动执行回滚，以便先保留现场和检查日志：
 
@@ -120,6 +128,37 @@ docker compose \
 sh deploy/update.sh sha-<上一版本完整提交哈希>
 sh deploy/update.sh sha-<当前版本完整提交哈希>
 ```
+
+## 生产环境独立 Compose 部署
+
+如果生产环境不使用仓库自带的 `docker-compose.yml`，而是维护独立的 `compose.yaml` 和自定义覆盖文件（例如服务器上的 `.deploy/new-api.fork.override.yml`，这些文件不在仓库内，由服务器侧维护），**不要使用 `deploy/update.sh`**——该脚本硬编码读取仓库根目录的 Compose 文件，无法指定自定义文件，直接调用会绕过生产覆盖配置。
+
+生产环境的日常更新使用 `latest`，并始终同时带上两个 `-f` 参数。只拉取并重建 `new-api`，保持 PostgreSQL、Redis 和其他宿主机服务（如 Hermes）不动：
+
+```sh
+cd <生产项目目录>
+docker compose -f compose.yaml -f <覆盖文件路径> pull new-api
+docker compose -f compose.yaml -f <覆盖文件路径> up -d --no-deps new-api
+```
+
+确认覆盖文件中 `new-api` 的镜像已设为 `latest`：
+
+```yaml
+services:
+  new-api:
+    image: ghcr.io/mashiro0619/new-api:latest
+```
+
+若覆盖文件仍固定在旧 SHA，先备份数据库并与运维确认服务器窗口，再改为 `latest`。
+
+更新后至少验证容器状态、`/api/status`、登录与实际 API 调用、应用日志，并确认 PostgreSQL、Redis 容器 ID 未变化：
+
+```sh
+docker compose -f compose.yaml -f <覆盖文件路径> ps
+curl -fsS http://127.0.0.1:3000/api/status
+```
+
+不要执行 `docker compose down`、`prune` 或删除数据卷。`latest` 标签会移动，更新前应记录当前镜像 digest 或 revision 并备份数据库；如需回滚，可在服务器本地保留旧镜像 digest，或临时改用 SHA 标签。
 
 ## 同步官方上游
 

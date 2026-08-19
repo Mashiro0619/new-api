@@ -43,22 +43,27 @@ ghcr.io/mashiro0619/new-api:<标签>
 docker login ghcr.io -u Mashiro0619
 ```
 
-然后克隆仓库并使用不可变 SHA 标签启动：
+然后克隆仓库并启动。默认使用 `latest` 标签：
 
 ```sh
 git clone https://github.com/Mashiro0619/new-api.git
 cd new-api
 
-export FORK_IMAGE_TAG=sha-<完整提交哈希>
 docker compose pull new-api
 docker compose up -d
 docker compose ps
 curl -fsS http://127.0.0.1:3000/api/status
 ```
 
-`<完整提交哈希>` 是 Git 提交的 40 位标识，可通过 `git rev-parse HEAD` 查看。发布工作流会生成对应的 `sha-<完整提交哈希>` 镜像标签。生产环境建议固定使用该标签，不直接依赖会移动的 `latest`。
+如需固定到可审计的版本，可改用发布工作流生成的不可变 SHA 标签（`sha-<完整提交哈希>`，提交哈希可通过 `git rev-parse HEAD` 查看）：
 
-已有官方 New API 实例需要保留数据库和 Redis 时，不要直接重新创建整套服务。请按照[自有镜像部署与更新](./deploy/README.md)先备份数据库，再使用 `deploy/update.sh` 仅替换 `new-api` 服务。
+```sh
+export FORK_IMAGE_TAG=sha-<完整提交哈希>
+docker compose pull new-api
+docker compose up -d
+```
+
+已有官方 New API 实例需要保留数据库和 Redis 时，不要直接重新创建整套服务。请按照[自有镜像部署与更新](./deploy/README.md)先备份数据库，再仅替换 `new-api` 服务。注意 `deploy/update.sh` 只适用于直接使用仓库自带 Compose 的部署；生产环境若使用独立 Compose 文件，请改用 `deploy/README.md` 中「生产环境独立 Compose 部署」一节的双 `-f` 命令。
 
 ## 本地开发
 

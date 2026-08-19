@@ -320,9 +320,9 @@ https://api.github.com/repos/Calcium-Ion/new-api/releases/latest
 
 现有测试覆盖默认值、序列化、非法类型、回显和透传冲突。仍可补充抽屉级 React Testing Library 测试，覆盖真实 Select 交互、敏感权限锁定、渠道类型切换和错误定位。这是测试完善项，不是当前已知阻断问题。
 
-### 10.4 部署文档尚未完全同步 `latest` 偏好
+### 10.4 部署文档已同步 `latest` 偏好
 
-根 `README.md` 和 `deploy/README.md` 仍以不可变 SHA 作为推荐日常流程，并且存在让既有实例直接使用 `deploy/update.sh` 的说明。这些内容尚未按当前生产文件布局和用户的 `latest` 偏好同步，不代表当前操作选择。后续应统一文档；在此之前，生产环境以第 4 节的双 `-f` 命令为准。
+根 `README.md` 和 `deploy/README.md` 已改为以 `latest` 作为日常更新推荐，不可变 SHA 标签降为可选的审计/回滚手段。同时已明确 `deploy/update.sh` 只适用于仓库自带 Compose 的部署，并新增「生产环境独立 Compose 部署」一节说明生产环境必须使用双 `-f` 命令。生产环境仍以第 4 节的双 `-f` 命令为准。
 
 ### 10.5 GHCR 制品验收尚未从本机完成
 
