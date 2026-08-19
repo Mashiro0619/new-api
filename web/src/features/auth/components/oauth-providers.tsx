@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { SiGoogle } from 'react-icons/si'
 
 import {
   IconDiscord,
@@ -48,6 +49,30 @@ type ProviderButton = {
   onClick: () => void
   icon?: ReactNode
   disabled?: boolean
+}
+
+function CustomOAuthIcon({ icon }: { icon?: string }) {
+  const value = icon?.trim()
+  if (!value) return null
+
+  if (/^(https?:\/\/|data:image\/)/i.test(value)) {
+    return (
+      <img
+        src={value}
+        alt=''
+        className='h-4 w-4 rounded-sm object-contain'
+        onError={(event) => {
+          event.currentTarget.style.display = 'none'
+        }}
+      />
+    )
+  }
+
+  if (value.toLowerCase() === 'google') {
+    return <SiGoogle className='h-4 w-4' aria-hidden='true' />
+  }
+
+  return null
 }
 
 export function OAuthProviders({
@@ -143,6 +168,7 @@ export function OAuthProviders({
         key: `custom-${provider.slug}`,
         label: t('Continue with {{name}}', { name: provider.name }),
         onClick: () => handleCustomOAuthLogin(provider),
+        icon: <CustomOAuthIcon icon={provider.icon} />,
       })
     }
   }
