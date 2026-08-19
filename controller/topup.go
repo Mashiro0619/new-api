@@ -26,9 +26,28 @@ func GetTopUpInfo(c *gin.Context) {
 	complianceConfirmed := operation_setting.IsPaymentComplianceConfirmed()
 
 	// 获取支付方式
-	payMethods := operation_setting.PayMethods
-	if !complianceConfirmed {
+	payMethods := make([]map[string]string, 0, len(operation_setting.PayMethods)+1)
+	for _, method := range operation_setting.PayMethods {
+		if method["type"] == model.PaymentMethodPerPay {
+			continue
+		}
+		cloned := make(map[string]string, len(method))
+		for key, value := range method {
+			cloned[key] = value
+		}
+		payMethods = append(payMethods, cloned)
+	}
+	if !complianceConfirmed || !isEpayTopUpEnabled() {
 		payMethods = []map[string]string{}
+	}
+	if isPerPayTopUpEnabled() {
+		payMethods = append(payMethods, map[string]string{
+			"name":      "PerPay",
+			"type":      model.PaymentMethodPerPay,
+			"icon":      "SiAlipay",
+			"color":     "#1677FF",
+			"min_topup": strconv.Itoa(operation_setting.MinTopUp),
+		})
 	}
 
 	// 如果启用了 Stripe 支付，添加到支付方法列表
@@ -98,6 +117,7 @@ func GetTopUpInfo(c *gin.Context) {
 
 	data := gin.H{
 		"enable_online_topup":              isEpayTopUpEnabled(),
+		"enable_perpay_topup":              isPerPayTopUpEnabled(),
 		"enable_stripe_topup":              isStripeTopUpEnabled(),
 		"enable_creem_topup":               isCreemTopUpEnabled(),
 		"enable_waffo_topup":               enableWaffo,
@@ -290,7 +310,7 @@ func RequestEpay(c *gin.Context) {
 		return
 	}
 
-	if !operation_setting.ContainsPayMethod(req.PaymentMethod) {
+	if req.PaymentMethod == model.PaymentMethodPerPay || !operation_setting.ContainsPayMethod(req.PaymentMethod) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "支付方式不存在"})
 		return
 	}

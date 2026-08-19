@@ -80,6 +80,10 @@ func InitOptionMap() {
 	common.OptionMap["CustomCallbackAddress"] = ""
 	common.OptionMap["EpayId"] = ""
 	common.OptionMap["EpayKey"] = ""
+	common.OptionMap["PerPayAddress"] = ""
+	common.OptionMap["PerPayClientId"] = operation_setting.PerPayClientId
+	common.OptionMap["PerPayAPIKey"] = ""
+	common.OptionMap["PerPayWebhookSecret"] = ""
 	common.OptionMap["Price"] = strconv.FormatFloat(operation_setting.Price, 'f', -1, 64)
 	common.OptionMap["USDExchangeRate"] = strconv.FormatFloat(operation_setting.USDExchangeRate, 'f', -1, 64)
 	common.OptionMap["MinTopUp"] = strconv.Itoa(operation_setting.MinTopUp)
@@ -206,6 +210,14 @@ func SyncOptions(frequency int) {
 }
 
 func validateOptionValue(key string, value string) error {
+	switch key {
+	case "PerPayAddress":
+		return operation_setting.ValidatePerPayAddress(value)
+	case "PerPayClientId":
+		return operation_setting.ValidatePerPayClientId(value)
+	case "PerPayAPIKey", "PerPayWebhookSecret":
+		return operation_setting.ValidatePerPaySecret(value)
+	}
 	if key == operation_setting.ToolPriceOptionKey {
 		return operation_setting.ValidateToolPricesJSON(value)
 	}
@@ -425,6 +437,14 @@ func updateOptionMap(key string, value string) (err error) {
 		operation_setting.EpayId = value
 	case "EpayKey":
 		operation_setting.EpayKey = value
+	case "PerPayAddress":
+		operation_setting.PerPayAddress = value
+	case "PerPayClientId":
+		operation_setting.PerPayClientId = value
+	case "PerPayAPIKey":
+		operation_setting.PerPayAPIKey = value
+	case "PerPayWebhookSecret":
+		operation_setting.PerPayWebhookSecret = value
 	case "Price":
 		operation_setting.Price, _ = strconv.ParseFloat(value, 64)
 	case "USDExchangeRate":

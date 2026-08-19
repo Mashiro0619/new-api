@@ -133,10 +133,15 @@ const BILLING_SECTIONS = [
     titleKey: 'Payment Gateway',
     build: (settings: BillingSettings) => (
       <PaymentSettingsSection
+        serverAddress={settings.ServerAddress}
         defaultValues={{
           PayAddress: settings.PayAddress,
           EpayId: settings.EpayId,
           EpayKey: settings.EpayKey,
+          PerPayAddress: settings.PerPayAddress,
+          PerPayClientId: settings.PerPayClientId,
+          PerPayAPIKey: settings.PerPayAPIKey,
+          PerPayWebhookSecret: settings.PerPayWebhookSecret,
           Price: settings.Price,
           MinTopUp: settings.MinTopUp,
           CustomCallbackAddress: settings.CustomCallbackAddress,

@@ -250,6 +250,7 @@ export type ModelSettings = {
 }
 
 export type BillingSettings = {
+  ServerAddress: string
   QuotaForNewUser: number
   PreConsumedQuota: number
   QuotaForInviter: number
@@ -287,6 +288,10 @@ export type BillingSettings = {
   PayAddress: string
   EpayId: string
   EpayKey: string
+  PerPayAddress: string
+  PerPayClientId: string
+  PerPayAPIKey: string
+  PerPayWebhookSecret: string
   Price: number
   MinTopUp: number
   CustomCallbackAddress: string

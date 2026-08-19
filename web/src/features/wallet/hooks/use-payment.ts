@@ -27,12 +27,14 @@ import {
   calculateWaffoPancakeAmount,
   requestPayment,
   requestStripePayment,
+  requestPerPayPayment,
   isApiSuccess,
 } from '../api'
 import {
   isStripePayment,
   isWaffoPayment,
   isWaffoPancakePayment,
+  isPerPayPayment,
   submitPaymentForm,
 } from '../lib'
 import type { AmountRequest, AmountResponse } from '../types'
@@ -111,6 +113,25 @@ export function usePayment() {
       try {
         setProcessing(true)
 
+        const isPerPay = isPerPayPayment(paymentType)
+        if (isPerPay) {
+          const response = await requestPerPayPayment({
+            amount: Math.floor(topupAmount),
+          })
+          if (!isApiSuccess(response)) {
+            toast.error(response.message || i18next.t('Payment request failed'))
+            return false
+          }
+          const checkoutUrl = response.data?.checkout_url
+          if (!checkoutUrl || !isSafePerPayCheckoutUrl(checkoutUrl)) {
+            toast.error(i18next.t('Invalid payment redirect URL'))
+            return false
+          }
+          toast.success(i18next.t('Redirecting to payment page...'))
+          window.location.href = checkoutUrl
+          return true
+        }
+
         const isStripe = isStripePayment(paymentType)
         const amount = Math.floor(topupAmount)
 
@@ -164,5 +185,14 @@ export function usePayment() {
     calculatePaymentAmount,
     processPayment,
     setAmount,
+  }
+}
+
+function isSafePerPayCheckoutUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' && !url.username && !url.password
+  } catch {
+    return false
   }
 }

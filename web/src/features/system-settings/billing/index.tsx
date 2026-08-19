@@ -25,6 +25,7 @@ import {
 } from './section-registry.tsx'
 
 const defaultBillingSettings: BillingSettings = {
+  ServerAddress: '',
   QuotaForNewUser: 0,
   PreConsumedQuota: 0,
   QuotaForInviter: 0,
@@ -62,6 +63,10 @@ const defaultBillingSettings: BillingSettings = {
   PayAddress: '',
   EpayId: '',
   EpayKey: '',
+  PerPayAddress: '',
+  PerPayClientId: 'default',
+  PerPayAPIKey: '',
+  PerPayWebhookSecret: '',
   Price: 7.3,
   MinTopUp: 1,
   CustomCallbackAddress: '',

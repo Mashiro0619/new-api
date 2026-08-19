@@ -94,6 +94,30 @@ function isHttpOriginUrl(value: string) {
   }
 }
 
+function isHttpsOriginUrl(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return true
+
+  try {
+    const url = new URL(trimmed)
+    const hasNoPath = url.pathname === '' || url.pathname === '/'
+    return (
+      url.protocol === 'https:' &&
+      !url.username &&
+      !url.password &&
+      hasNoPath &&
+      !url.search &&
+      !url.hash
+    )
+  } catch {
+    return false
+  }
+}
+
+function isCanonicalPerPaySecret(value: string) {
+  return value === '' || /^[A-Za-z0-9_-]{43}$/.test(value)
+}
+
 const paymentSchema = z.object({
   PayAddress: z.string().refine((value) => {
     const trimmed = value.trim()
@@ -102,6 +126,25 @@ const paymentSchema = z.object({
   }, 'Provide a valid callback URL starting with http:// or https://'),
   EpayId: z.string(),
   EpayKey: z.string(),
+  PerPayAddress: z
+    .string()
+    .refine(
+      isHttpsOriginUrl,
+      '只填写 PerPay 的 HTTPS 站点地址，例如 https://pay.example.com。'
+    ),
+  PerPayClientId: z
+    .string()
+    .refine(
+      (value) =>
+        value === '' || /^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/.test(value),
+      'Client ID 必须包含 3 到 64 位 URL 安全字符。'
+    ),
+  PerPayAPIKey: z
+    .string()
+    .refine(isCanonicalPerPaySecret, '请输入 PerPay 生成的 43 位 API 密钥。'),
+  PerPayWebhookSecret: z
+    .string()
+    .refine(isCanonicalPerPaySecret, '请输入 PerPay 生成的 43 位通知密钥。'),
   Price: z.coerce.number().min(0),
   MinTopUp: z.coerce.number().min(0),
   CustomCallbackAddress: z
@@ -196,6 +239,7 @@ type PaymentComplianceDefaults = {
 }
 
 type PaymentSettingsSectionProps = {
+  serverAddress: string
   defaultValues: PaymentBaseFormValues
   waffoDefaultValues: WaffoSettingsValues
   waffoPancakeDefaultValues: WaffoPancakeSettingsValues
@@ -214,6 +258,7 @@ function parseWaffoPayMethods(value: string): PayMethod[] {
 }
 
 export function PaymentSettingsSection({
+  serverAddress,
   defaultValues,
   waffoDefaultValues,
   waffoPancakeDefaultValues,
@@ -421,6 +466,10 @@ export function PaymentSettingsSection({
       PayAddress: removeTrailingSlash(values.PayAddress),
       EpayId: values.EpayId.trim(),
       EpayKey: values.EpayKey.trim(),
+      PerPayAddress: removeTrailingSlash(values.PerPayAddress),
+      PerPayClientId: values.PerPayClientId.trim(),
+      PerPayAPIKey: values.PerPayAPIKey.trim(),
+      PerPayWebhookSecret: values.PerPayWebhookSecret.trim(),
       Price: values.Price,
       MinTopUp: values.MinTopUp,
       CustomCallbackAddress: removeTrailingSlash(values.CustomCallbackAddress),
@@ -463,6 +512,10 @@ export function PaymentSettingsSection({
       PayAddress: removeTrailingSlash(initialRef.current.PayAddress),
       EpayId: initialRef.current.EpayId.trim(),
       EpayKey: initialRef.current.EpayKey.trim(),
+      PerPayAddress: removeTrailingSlash(initialRef.current.PerPayAddress),
+      PerPayClientId: initialRef.current.PerPayClientId.trim(),
+      PerPayAPIKey: initialRef.current.PerPayAPIKey.trim(),
+      PerPayWebhookSecret: initialRef.current.PerPayWebhookSecret.trim(),
       Price: initialRef.current.Price,
       MinTopUp: initialRef.current.MinTopUp,
       CustomCallbackAddress: removeTrailingSlash(
@@ -518,6 +571,25 @@ export function PaymentSettingsSection({
 
     if (sanitized.EpayKey && sanitized.EpayKey !== initial.EpayKey) {
       updates.push({ key: 'EpayKey', value: sanitized.EpayKey })
+    }
+
+    if (sanitized.PerPayAddress !== initial.PerPayAddress) {
+      updates.push({ key: 'PerPayAddress', value: sanitized.PerPayAddress })
+    }
+
+    if (sanitized.PerPayClientId !== initial.PerPayClientId) {
+      updates.push({ key: 'PerPayClientId', value: sanitized.PerPayClientId })
+    }
+
+    if (sanitized.PerPayAPIKey) {
+      updates.push({ key: 'PerPayAPIKey', value: sanitized.PerPayAPIKey })
+    }
+
+    if (sanitized.PerPayWebhookSecret) {
+      updates.push({
+        key: 'PerPayWebhookSecret',
+        value: sanitized.PerPayWebhookSecret,
+      })
     }
 
     if (sanitized.Price !== initial.Price) {
@@ -795,6 +867,17 @@ export function PaymentSettingsSection({
     WaffoPancakePrivateKey: currentFormValues.WaffoPancakePrivateKey,
     WaffoPancakeReturnURL: currentFormValues.WaffoPancakeReturnURL,
   }
+  let perPayNotifyURL = '<请先配置 HTTPS 公开地址>'
+  let perPayNotifyOrigin = '<请先配置 HTTPS 公开地址>'
+  try {
+    if (serverAddress && isHttpsOriginUrl(serverAddress)) {
+      const publicURL = new URL(serverAddress)
+      perPayNotifyOrigin = publicURL.origin
+      perPayNotifyURL = `${publicURL.origin}/api/user/perpay/notify`
+    }
+  } catch {
+    // 公开地址配置正确后再展示通知地址。
+  }
 
   return (
     <SettingsSection title={t('Payment Gateway')}>
@@ -877,9 +960,10 @@ export function PaymentSettingsSection({
           />
           <Tabs defaultValue='general' className='min-w-0'>
             <div className='overflow-x-auto pb-1'>
-              <TabsList className='grid min-w-[44rem] grid-cols-6'>
+              <TabsList className='grid min-w-[51rem] grid-cols-7'>
                 <TabsTrigger value='general'>{t('General')}</TabsTrigger>
                 <TabsTrigger value='epay'>Epay</TabsTrigger>
+                <TabsTrigger value='perpay'>PerPay</TabsTrigger>
                 <TabsTrigger value='stripe'>{t('Stripe')}</TabsTrigger>
                 <TabsTrigger value='creem'>Creem</TabsTrigger>
                 <TabsTrigger value='waffo-pancake'>Waffo Pancake</TabsTrigger>
@@ -1250,6 +1334,128 @@ export function PaymentSettingsSection({
                     )}
                   />
                 </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value='perpay' className={paymentTabContentClassName}>
+              <div className='space-y-4'>
+                <div>
+                  <h3 className='text-lg font-medium'>{t('PerPay 支付')}</h3>
+                  <p className='text-muted-foreground text-sm'>
+                    {t('将当前实例连接到独立部署的 PerPay 服务。')}
+                  </p>
+                </div>
+
+                <Alert>
+                  <ShieldAlert className='h-4 w-4' />
+                  <AlertTitle>{t('通知设置')}</AlertTitle>
+                  <AlertDescription>
+                    {t(
+                      '在 PerPay 中启用通知，将允许的通知来源设置为 {{origin}}，然后在下方填写生成的通知密钥。',
+                      { origin: perPayNotifyOrigin }
+                    )}
+                  </AlertDescription>
+                </Alert>
+
+                <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='PerPayAddress'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('PerPay 地址')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder='https://pay.example.com'
+                            autoComplete='url'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('只填写 HTTPS 站点地址，不要包含路径。')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='PerPayClientId'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('PerPay Client ID')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            autoComplete='off'
+                            placeholder='default'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('PerPay 的默认 Client ID 是 default。')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='PerPayAPIKey'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('PerPay API 密钥')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='password'
+                            autoComplete='new-password'
+                            placeholder={t('Enter new key to update')}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('请在 PerPay 的接口设置中生成或轮换此密钥。')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='PerPayWebhookSecret'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('PerPay 通知密钥')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='password'
+                            autoComplete='new-password'
+                            placeholder={t('Enter new key to update')}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('填写 PerPay 生成的通知签名密钥。')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormItem>
+                  <FormLabel>{t('PerPay 通知地址')}</FormLabel>
+                  <FormControl>
+                    <Input readOnly value={perPayNotifyURL} />
+                  </FormControl>
+                  <FormDescription>
+                    {t('new-api 会在创建每笔 PerPay 订单时自动提交此地址。')}
+                  </FormDescription>
+                </FormItem>
               </div>
             </TabsContent>
 

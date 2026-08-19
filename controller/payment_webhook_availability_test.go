@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/stretchr/testify/require"
 )
 
@@ -166,4 +167,36 @@ func TestEpayWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 
 	operation_setting.PayMethods = nil
 	require.False(t, isEpayWebhookEnabled())
+}
+
+func TestPerPayTopUpRequiresCompleteConfigAndHTTPSCallback(t *testing.T) {
+	confirmPaymentComplianceForTest(t)
+	originalAddress := operation_setting.PerPayAddress
+	originalClientID := operation_setting.PerPayClientId
+	originalAPIKey := operation_setting.PerPayAPIKey
+	originalWebhookSecret := operation_setting.PerPayWebhookSecret
+	originalServerAddress := system_setting.ServerAddress
+	t.Cleanup(func() {
+		operation_setting.PerPayAddress = originalAddress
+		operation_setting.PerPayClientId = originalClientID
+		operation_setting.PerPayAPIKey = originalAPIKey
+		operation_setting.PerPayWebhookSecret = originalWebhookSecret
+		system_setting.ServerAddress = originalServerAddress
+	})
+
+	secret := "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+	operation_setting.PerPayAddress = "https://pay.example.com"
+	operation_setting.PerPayClientId = "default"
+	operation_setting.PerPayAPIKey = secret
+	operation_setting.PerPayWebhookSecret = secret
+	system_setting.ServerAddress = "http://new-api.example.com"
+	require.True(t, isPerPayWebhookConfigured())
+	require.False(t, isPerPayTopUpEnabled())
+
+	system_setting.ServerAddress = "https://new-api.example.com"
+	require.True(t, isPerPayTopUpEnabled())
+
+	operation_setting.PerPayWebhookSecret = ""
+	require.False(t, isPerPayWebhookConfigured())
+	require.False(t, isPerPayTopUpEnabled())
 }

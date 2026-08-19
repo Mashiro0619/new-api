@@ -23,6 +23,7 @@ import {
   dispatchSelectedPayment,
   isStripePayment,
   isWaffoPayment,
+  isPerPayPayment,
   isWaffoPancakePayment,
 } from './payment'
 
@@ -33,6 +34,8 @@ describe('payment type classification', () => {
     expect(isWaffoPancakePayment(PAYMENT_TYPES.WAFFO_PANCAKE)).toBe(true)
     expect(isWaffoPancakePayment(PAYMENT_TYPES.WAFFO)).toBe(false)
     expect(isStripePayment(PAYMENT_TYPES.STRIPE)).toBe(true)
+    expect(isPerPayPayment(PAYMENT_TYPES.PERPAY)).toBe(true)
+    expect(isPerPayPayment(PAYMENT_TYPES.ALIPAY)).toBe(false)
   })
 })
 

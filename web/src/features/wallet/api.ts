@@ -29,6 +29,8 @@ import type {
   AmountResponse,
   PaymentResponse,
   StripePaymentResponse,
+  PerPayPaymentRequest,
+  PerPayPaymentResponse,
   AffiliateCodeResponse,
   AffiliateTransferResponse,
   BillingHistoryResponse,
@@ -128,6 +130,18 @@ export async function requestStripePayment(
   request: PaymentRequest
 ): Promise<StripePaymentResponse> {
   const res = await api.post('/api/user/stripe/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Create a PerPay order and receive its hosted checkout URL.
+ */
+export async function requestPerPayPayment(
+  request: PerPayPaymentRequest
+): Promise<PerPayPaymentResponse> {
+  const res = await api.post('/api/user/perpay/pay', request, {
     skipBusinessError: true,
   } as Record<string, unknown>)
   return res.data

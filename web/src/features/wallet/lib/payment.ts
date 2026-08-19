@@ -93,6 +93,10 @@ export function isWaffoPancakePayment(paymentType: string): boolean {
   return paymentType === PAYMENT_TYPES.WAFFO_PANCAKE
 }
 
+export function isPerPayPayment(paymentType: string): boolean {
+  return paymentType === PAYMENT_TYPES.PERPAY
+}
+
 export interface PaymentProcessors {
   regular: (topupAmount: number, paymentType: string) => Promise<boolean>
   waffo: (topupAmount: number, payMethodIndex: number) => Promise<boolean>
@@ -136,6 +140,10 @@ export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
     return PAYMENT_TYPES.STRIPE
   }
 
+  if (topupInfo.enable_perpay_topup) {
+    return PAYMENT_TYPES.PERPAY
+  }
+
   if (topupInfo.enable_waffo_topup) {
     return PAYMENT_TYPES.WAFFO
   }
@@ -156,6 +164,10 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
   }
 
   if (topupInfo.enable_online_topup) {
+    return topupInfo.min_topup
+  }
+
+  if (topupInfo.enable_perpay_topup) {
     return topupInfo.min_topup
   }
 

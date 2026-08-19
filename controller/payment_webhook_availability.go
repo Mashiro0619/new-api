@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 )
 
 func isPaymentComplianceConfirmed() bool {
@@ -107,4 +108,17 @@ func isEpayWebhookConfigured() bool {
 
 func isEpayWebhookEnabled() bool {
 	return isEpayTopUpEnabled()
+}
+
+func isPerPayWebhookConfigured() bool {
+	return strings.TrimSpace(operation_setting.PerPayWebhookSecret) != "" &&
+		operation_setting.ValidatePerPaySecret(operation_setting.PerPayWebhookSecret) == nil
+}
+
+func isPerPayTopUpEnabled() bool {
+	if !isPaymentComplianceConfirmed() || !operation_setting.IsPerPayConfigured() {
+		return false
+	}
+	_, err := perPayNotifyURL(system_setting.ServerAddress)
+	return err == nil
 }
