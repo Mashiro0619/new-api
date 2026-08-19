@@ -54,7 +54,11 @@ function normalizeViewMode(value: unknown): ViewMode {
 }
 
 export function useFilters(models: PricingModel[]) {
-  const search = useSearch({ from: '/pricing/' })
+  // Read search params from the currently active route rather than a hardcoded
+  // route id, so the same hook works under both the public `/pricing/` route
+  // and the authenticated `/dashboard/pricing` route. Both routes share the
+  // same validateSearch schema, so the resolved shape is identical.
+  const search = useSearch({ strict: false }) as FilterState
   const [filterState, setFilterState] = useState<FilterState>(() => ({
     search: search.search,
     sort: search.sort,

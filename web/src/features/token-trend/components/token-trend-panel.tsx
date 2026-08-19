@@ -452,8 +452,6 @@ export function TokenTrendPanel(props: TokenTrendPanelProps) {
     )
   }
 
-  const trackingStartedAt = query.data?.tracking_started_at
-
   return (
     <Card className={props.className}>
       <CardHeader>
@@ -466,15 +464,6 @@ export function TokenTrendPanel(props: TokenTrendPanelProps) {
         </CardDescription>
         {query.data?.available && (
           <div className='text-muted-foreground mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs'>
-            {trackingStartedAt != null && (
-              <span>
-                {t('Tracking since {{time}}', {
-                  time: formatters.tooltip.format(
-                    new Date(trackingStartedAt * 1000)
-                  ),
-                })}
-              </span>
-            )}
             <span>
               {t('{{count}} tracked requests', {
                 count: formatters.number.format(

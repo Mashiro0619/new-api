@@ -29,6 +29,7 @@ import {
   Radio,
   ServerCog,
   Settings,
+  Store,
   Ticket,
   User,
   Users,
@@ -37,8 +38,10 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarData } from '@/components/layout/types'
+import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
+import { useStatus } from '@/hooks/use-status'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -49,6 +52,57 @@ import { useAuthStore } from '@/stores/auth-store'
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
   const role = useAuthStore((state) => state.auth.user?.role ?? ROLE.GUEST)
+  const { status } = useStatus()
+
+  // Pricing ("Model Square") lives in the top nav for unauthenticated visitors
+  // (see use-top-nav-links.ts). Once signed in it moves into the sidebar
+  // "General" group, gated by the same HeaderNavModules.pricing.enabled flag.
+  const modules = parseHeaderNavModulesFromStatus(
+    status as Record<string, unknown> | null
+  )
+  const pricingEnabled =
+    modules?.pricing && typeof modules.pricing === 'object'
+      ? modules.pricing.enabled
+      : false
+
+  const generalItems: SidebarData['navGroups'][number]['items'] = [
+    {
+      title: t('Overview'),
+      url: '/dashboard/overview',
+      icon: Activity,
+    },
+    {
+      title: t('Dashboard'),
+      url: role >= ROLE.ADMIN ? '/dashboard/users' : '/dashboard/models',
+      activeUrls: ['/dashboard'],
+      icon: LayoutDashboard,
+    },
+    {
+      title: t('API Keys'),
+      url: '/keys',
+      icon: Key,
+    },
+    {
+      title: t('Usage Logs'),
+      url: '/usage-logs/common',
+      icon: FileText,
+    },
+    {
+      title: t('Task Logs'),
+      url: '/usage-logs/task',
+      activeUrls: ['/usage-logs/drawing'],
+      configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
+      icon: ListTodo,
+    },
+  ]
+
+  if (pricingEnabled) {
+    generalItems.push({
+      title: t('Model Square'),
+      url: '/dashboard/pricing',
+      icon: Store,
+    })
+  }
 
   return {
     navGroups: [
@@ -71,36 +125,7 @@ export function useSidebarData(): SidebarData {
       {
         id: 'general',
         title: t('General'),
-        items: [
-          {
-            title: t('Overview'),
-            url: '/dashboard/overview',
-            icon: Activity,
-          },
-          {
-            title: t('Dashboard'),
-            url: role >= ROLE.ADMIN ? '/dashboard/users' : '/dashboard/models',
-            activeUrls: ['/dashboard'],
-            icon: LayoutDashboard,
-          },
-          {
-            title: t('API Keys'),
-            url: '/keys',
-            icon: Key,
-          },
-          {
-            title: t('Usage Logs'),
-            url: '/usage-logs/common',
-            icon: FileText,
-          },
-          {
-            title: t('Task Logs'),
-            url: '/usage-logs/task',
-            activeUrls: ['/usage-logs/drawing'],
-            configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
-            icon: ListTodo,
-          },
-        ],
+        items: generalItems,
       },
       {
         id: 'personal',

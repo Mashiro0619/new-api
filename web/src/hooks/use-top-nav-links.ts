@@ -73,8 +73,16 @@ export function useTopNavLinks(): TopNavLink[] {
   }
 
   // Pricing
+  // When unauthenticated, the pricing entry stays in the top nav so visitors
+  // can still reach the model square. Once signed in, it moves to the sidebar
+  // "General" group (see use-sidebar-data.ts), so we omit it here.
   const pricing = modules?.pricing
-  if (pricing && typeof pricing === 'object' && pricing.enabled) {
+  if (
+    pricing &&
+    typeof pricing === 'object' &&
+    pricing.enabled &&
+    !isAuthed
+  ) {
     const requiresAuth = pricing.requireAuth && !isAuthed
     links.push({ title: t('Model Square'), href: '/pricing', requiresAuth })
   }
