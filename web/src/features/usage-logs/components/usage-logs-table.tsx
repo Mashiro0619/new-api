@@ -225,9 +225,15 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       }
       toolbar={
         isCommon ? (
-          <div className='flex flex-col gap-3'>
-            <CommonLogsFilterBar table={table} />
+          <div
+            className='grid min-w-0 gap-3 min-[1800px]:grid-cols-2'
+            data-slot='usage-logs-toolbar-grid'
+          >
+            <div className='min-w-0'>
+              <CommonLogsFilterBar table={table} />
+            </div>
             <TokenTrendPanel
+              className='min-w-0'
               scope={tokenTrendScope}
               filters={tokenTrendFilters}
             />

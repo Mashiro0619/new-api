@@ -63,25 +63,31 @@ export function AdminUserAnalytics() {
 
   return (
     <div className='flex flex-col gap-4'>
-      <div className='overflow-hidden rounded-lg border'>
-        <AnalyticsFilters
-          key={`${filters.startTimestamp}-${filters.endTimestamp}-${filters.model}-${filters.token}-${filters.group}-${filters.channel}`}
-          value={filters}
-          onApply={applyFilters}
+      <div
+        className='grid gap-4 min-[1800px]:grid-cols-2'
+        data-slot='admin-user-analytics-toolbar-grid'
+      >
+        <div className='min-w-0 overflow-hidden rounded-lg border'>
+          <AnalyticsFilters
+            key={`${filters.startTimestamp}-${filters.endTimestamp}-${filters.model}-${filters.token}-${filters.group}-${filters.channel}`}
+            value={filters}
+            onApply={applyFilters}
+          />
+        </div>
+        <TokenTrendPanel
+          className='min-w-0'
+          scope={{ mode: 'admin' }}
+          filters={{
+            startTimestamp: filters.startTimestamp,
+            endTimestamp: filters.endTimestamp,
+            model: filters.model,
+            token: filters.token,
+            group: filters.group,
+            channel: filters.channel,
+            type: 2,
+          }}
         />
       </div>
-      <TokenTrendPanel
-        scope={{ mode: 'admin' }}
-        filters={{
-          startTimestamp: filters.startTimestamp,
-          endTimestamp: filters.endTimestamp,
-          model: filters.model,
-          token: filters.token,
-          group: filters.group,
-          channel: filters.channel,
-          type: 2,
-        }}
-      />
       <AnalyticsUserTable filters={filters} />
     </div>
   )
