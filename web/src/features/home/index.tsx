@@ -45,7 +45,7 @@ function DefaultHome() {
         <div className='mx-auto grid w-full max-w-7xl items-center gap-14 px-6 py-16 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] lg:gap-24'>
           <h1 className='text-center text-[clamp(3.5rem,7vw,7rem)] leading-[0.9] font-semibold tracking-[-0.06em] lg:text-left'>
             <span className='whitespace-nowrap'>Mashiro AI</span>
-            <span className='block whitespace-nowrap lg:inline'>中转站</span>
+            <span className='block text-center whitespace-nowrap'>中转站</span>
           </h1>
           <section className='w-full max-w-md justify-self-end'>
             <div className='mb-6 space-y-2'>

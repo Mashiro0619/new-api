@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
+import { cn } from '@/lib/utils'
 
 import {
   LoadingSkeleton,
@@ -177,7 +178,12 @@ export function PricingContent({ embedded = false }: { embedded?: boolean }) {
   }
 
   return (
-    <div className='relative'>
+    <div
+      className={cn(
+        'relative',
+        embedded && 'h-full min-h-0 overflow-y-auto overscroll-contain'
+      )}
+    >
       <div
         aria-hidden
         className='pointer-events-none absolute inset-x-0 top-0 h-[600px] opacity-20 dark:opacity-[0.10]'
