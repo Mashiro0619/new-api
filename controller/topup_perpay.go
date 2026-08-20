@@ -100,7 +100,7 @@ func RequestPerPay(c *gin.Context) {
 		IdempotencyKey:  "new-api:" + tradeNo,
 		MerchantOrderNo: tradeNo,
 		AmountCents:      amountCents,
-		Description:      "new-api 充值",
+		ProductName:      "new-api 充值",
 		NotifyURL:        notifyURL,
 	})
 	if err != nil {

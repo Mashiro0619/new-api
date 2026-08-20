@@ -50,7 +50,7 @@ type PerPayCreateOrderInput struct {
 	IdempotencyKey string `json:"idempotency_key"`
 	MerchantOrderNo string `json:"merchant_order_no"`
 	AmountCents     int64  `json:"amount_cents"`
-	Description     string `json:"description,omitempty"`
+	ProductName     string `json:"product_name"`
 	NotifyURL       string `json:"notify_url,omitempty"`
 }
 
@@ -123,7 +123,7 @@ func (client *PerPayClient) CreateOrder(ctx context.Context, input PerPayCreateO
 	if client == nil {
 		return nil, errors.New("PerPay 客户端未初始化")
 	}
-	if input.IdempotencyKey == "" || input.MerchantOrderNo == "" || input.AmountCents <= 0 {
+	if input.IdempotencyKey == "" || input.MerchantOrderNo == "" || input.AmountCents <= 0 || strings.TrimSpace(input.ProductName) == "" {
 		return nil, errors.New("PerPay 订单参数无效")
 	}
 	if err := validatePerPayHTTPSURL(input.NotifyURL); err != nil {
