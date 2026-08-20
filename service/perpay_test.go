@@ -47,6 +47,7 @@ func TestPerPayClientCreateOrderSignsExactBody(t *testing.T) {
 		require.NoError(t, json.Unmarshal(body, &request))
 		require.Equal(t, int64(1234), request.AmountCents)
 		require.Equal(t, "new-api recharge", request.ProductName)
+		require.Equal(t, "user: alice", request.Note)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		_, _ = fmt.Fprintf(w, `{"data":{"order_id":"018f4d21-5a1d-4c76-8a1c-4e45b5991bb5","merchant_order_no":%q,"requested_amount_cents":1234,"payable_amount_cents":1235,"currency":"CNY","checkout":{"status":"OPEN","checkout_url":%q}}}`, request.MerchantOrderNo, server.URL+"/checkout/test")
@@ -60,6 +61,7 @@ func TestPerPayClientCreateOrderSignsExactBody(t *testing.T) {
 		MerchantOrderNo: "trade-1",
 		AmountCents:      1234,
 		ProductName:      "new-api recharge",
+		Note:             "user: alice",
 		NotifyURL:        server.URL + "/api/user/perpay/notify",
 	})
 	require.NoError(t, err)
@@ -102,10 +104,13 @@ func TestVerifyPerPayWebhook(t *testing.T) {
 }
 
 func TestParsePerPayWebhookEvent(t *testing.T) {
-	body := []byte(`{"schema":"perpay:outbox-event:v2","event_id":"018f4d21-5a1d-4c76-8a1c-4e45b5991bb5","event_type":"PAYMENT_CONFIRMED","order_id":"128f4d21-5a1d-4c76-8a1c-4e45b5991bb5","order_version":2,"merchant_order_no":"trade-1","requested_amount_cents":1234,"payable_amount_cents":1235,"received_amount_cents":1235,"currency":"CNY","payment_status":"CONFIRMED","payment_basis":"INFERRED","extra":"accepted"}`)
+	body := []byte(`{"schema":"perpay:outbox-event:v2","event_id":"018f4d21-5a1d-4c76-8a1c-4e45b5991bb5","event_type":"PAYMENT_CONFIRMED","order_id":"128f4d21-5a1d-4c76-8a1c-4e45b5991bb5","order_version":2,"merchant_order_no":"trade-1","product_name":"中转站充值 12.34","note":"用户名：alice","requested_amount_cents":1234,"payable_amount_cents":1235,"received_amount_cents":1235,"currency":"CNY","payment_status":"CONFIRMED","payment_basis":"INFERRED","extra":"accepted"}`)
 	event, err := ParsePerPayWebhookEvent(body)
 	require.NoError(t, err)
 	require.Equal(t, "trade-1", event.MerchantOrderNo)
+	require.Equal(t, "中转站充值 12.34", event.ProductName)
+	require.NotNil(t, event.Note)
+	require.Equal(t, "用户名：alice", *event.Note)
 	require.Equal(t, int64(1235), event.ReceivedAmountCents)
 
 	_, err = ParsePerPayWebhookEvent(append(body, []byte(` {}`)...))

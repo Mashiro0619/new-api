@@ -51,6 +51,7 @@ type PerPayCreateOrderInput struct {
 	MerchantOrderNo string `json:"merchant_order_no"`
 	AmountCents     int64  `json:"amount_cents"`
 	ProductName     string `json:"product_name"`
+	Note            string `json:"note,omitempty"`
 	NotifyURL       string `json:"notify_url,omitempty"`
 }
 
@@ -236,6 +237,8 @@ type PerPayWebhookEvent struct {
 	OrderID              string          `json:"order_id"`
 	OrderVersion         int64           `json:"order_version"`
 	MerchantOrderNo      string          `json:"merchant_order_no"`
+	ProductName          string          `json:"product_name"`
+	Note                 *string         `json:"note"`
 	RequestedAmountCents int64           `json:"requested_amount_cents"`
 	PayableAmountCents   int64           `json:"payable_amount_cents"`
 	ReceivedAmountCents  int64           `json:"received_amount_cents"`

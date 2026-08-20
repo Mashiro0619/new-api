@@ -48,6 +48,12 @@ func RequestPerPay(c *gin.Context) {
 		common.ApiErrorMsg(c, "获取用户分组失败")
 		return
 	}
+	username, err := model.GetUsernameById(userID, false)
+	if err != nil || strings.TrimSpace(username) == "" {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("PerPay 获取用户名失败 user_id=%d error=%q", userID, err))
+		common.ApiErrorMsg(c, "获取用户信息失败")
+		return
+	}
 
 	payMoney := decimal.NewFromFloat(getPayMoney(req.Amount, group)).Round(2)
 	amountCents := payMoney.Mul(decimal.NewFromInt(100)).IntPart()
@@ -100,7 +106,8 @@ func RequestPerPay(c *gin.Context) {
 		IdempotencyKey:  "new-api:" + tradeNo,
 		MerchantOrderNo: tradeNo,
 		AmountCents:      amountCents,
-		ProductName:      "new-api 充值",
+		ProductName:      "中转站充值 " + payMoney.StringFixed(2),
+		Note:             "用户名：" + username,
 		NotifyURL:        notifyURL,
 	})
 	if err != nil {
