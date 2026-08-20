@@ -37,7 +37,7 @@ import {
   isPerPayPayment,
   submitPaymentForm,
 } from '../lib'
-import type { AmountRequest, AmountResponse } from '../types'
+import type { AmountRequest, AmountResponse, ApiResponse } from '../types'
 
 // ============================================================================
 // Payment Hook
@@ -75,10 +75,17 @@ export async function requestPaymentAmount(
 
   const response = await calculator({ amount: topupAmount })
   if (!isApiSuccess(response) || !response.data) {
-    return 0
+    throw new Error(
+      getApiErrorMessage(response) || i18next.t('Payment request failed')
+    )
   }
 
-  return Number.parseFloat(response.data)
+  const amount = Number.parseFloat(response.data)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error(i18next.t('Payment request failed'))
+  }
+
+  return amount
 }
 
 export function usePayment() {
@@ -97,8 +104,13 @@ export function usePayment() {
         )
         setAmount(calculatedAmount)
         return calculatedAmount
-      } catch {
+      } catch (error) {
         setAmount(0)
+        toast.error(
+          error instanceof Error && error.message
+            ? error.message
+            : i18next.t('Payment request failed')
+        )
         return 0
       } finally {
         setCalculating(false)
@@ -119,7 +131,10 @@ export function usePayment() {
             amount: Math.floor(topupAmount),
           })
           if (!isApiSuccess(response)) {
-            toast.error(response.message || i18next.t('Payment request failed'))
+            toast.error(
+              getApiErrorMessage(response) ||
+                i18next.t('Payment request failed')
+            )
             return false
           }
           const checkoutUrl = response.data?.checkout_url
@@ -146,7 +161,9 @@ export function usePayment() {
             })
 
         if (!isApiSuccess(response)) {
-          toast.error(response.message || i18next.t('Payment request failed'))
+          toast.error(
+            getApiErrorMessage(response) || i18next.t('Payment request failed')
+          )
           return false
         }
 
@@ -186,6 +203,29 @@ export function usePayment() {
     processPayment,
     setAmount,
   }
+}
+
+function getApiErrorMessage(response: ApiResponse<unknown>): string | null {
+  const message =
+    typeof response.message === 'string' ? response.message.trim() : ''
+  if (message && message.toLowerCase() !== 'error') return message
+
+  if (typeof response.data === 'string' && response.data.trim()) {
+    return response.data.trim()
+  }
+
+  if (
+    response.data &&
+    typeof response.data === 'object' &&
+    'message' in response.data
+  ) {
+    const dataMessage = (response.data as { message?: unknown }).message
+    if (typeof dataMessage === 'string' && dataMessage.trim()) {
+      return dataMessage.trim()
+    }
+  }
+
+  return message || null
 }
 
 function isSafePerPayCheckoutUrl(value: string): boolean {

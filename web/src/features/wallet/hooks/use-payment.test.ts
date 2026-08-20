@@ -46,4 +46,18 @@ describe('payment amount routing', () => {
     expect(amount).toBe(18.75)
     expect(calls).toEqual(['waffo:120'])
   })
+
+  test('surfaces the backend detail when amount calculation fails', async () => {
+    await expect(
+      requestPaymentAmount(120, PAYMENT_TYPES.PERPAY, {
+        regular: async () => ({
+          message: 'error',
+          data: '充值金额超过当前账户可用额度',
+        }),
+        stripe: async () => ({ success: true, data: '1' }),
+        waffo: async () => ({ success: true, data: '1' }),
+        waffoPancake: async () => ({ success: true, data: '1' }),
+      })
+    ).rejects.toThrow('充值金额超过当前账户可用额度')
+  })
 })
