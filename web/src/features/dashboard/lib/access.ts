@@ -20,8 +20,8 @@ import { ROLE } from '@/lib/roles'
 
 import type { DashboardSectionId } from '../section-registry'
 
-export function getDashboardLandingSection(role: number): DashboardSectionId {
-  return role >= ROLE.ADMIN ? 'users' : 'models'
+export function getDashboardLandingSection(_role: number): DashboardSectionId {
+  return 'overview'
 }
 
 export function canAccessDashboardSection(

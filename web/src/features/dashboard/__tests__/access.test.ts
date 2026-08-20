@@ -26,13 +26,10 @@ import {
 } from '../lib/access'
 
 describe('dashboard analytics access', () => {
-  test('admin roles land on user analytics', () => {
-    expect(getDashboardLandingSection(ROLE.ADMIN)).toBe('users')
-    expect(getDashboardLandingSection(ROLE.SUPER_ADMIN)).toBe('users')
-  })
-
-  test('common users land on their model analytics', () => {
-    expect(getDashboardLandingSection(ROLE.USER)).toBe('models')
+  test('all roles land on the overview page by default', () => {
+    expect(getDashboardLandingSection(ROLE.ADMIN)).toBe('overview')
+    expect(getDashboardLandingSection(ROLE.SUPER_ADMIN)).toBe('overview')
+    expect(getDashboardLandingSection(ROLE.USER)).toBe('overview')
   })
 
   test('user analytics rejects non-admin roles', () => {
