@@ -18,13 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ErrorState } from '@/components/error-state'
-import { LanguageSwitcher } from '@/components/language-switcher'
 import { LoadingState } from '@/components/loading-state'
 import {
   Card,
@@ -278,11 +277,31 @@ export function SetupWizard() {
     mutation.mutate(payload)
   }
 
+  let setupStatusContent: ReactNode
+  if (isLoading) {
+    setupStatusContent = <LoadingState message={t('Loading setup status…')} />
+  } else if (isError) {
+    setupStatusContent = (
+      <ErrorState
+        title={t('We could not load the setup status.')}
+        onRetry={() => refetch()}
+      />
+    )
+  } else {
+    setupStatusContent = (
+      <Form {...form}>
+        <form
+          className='space-y-6'
+          onSubmit={(event) => event.preventDefault()}
+        >
+          {currentStepComponent}
+        </form>
+      </Form>
+    )
+  }
+
   return (
     <div className='bg-muted/40 relative min-h-svh py-10'>
-      <div className='absolute top-4 right-4 sm:top-6 sm:right-6'>
-        <LanguageSwitcher />
-      </div>
       <div className='container mx-auto flex max-w-5xl flex-col gap-8 px-4 sm:px-6'>
         <div className='flex flex-col items-center gap-3'>
           <div className='relative h-12 w-12'>
@@ -325,27 +344,30 @@ export function SetupWizard() {
               {STEPS.map((step, index) => {
                 const isActive = currentStep === index
                 const isCompleted = currentStep > index
+                let stepClassName = 'border-muted bg-card'
+                if (isActive) {
+                  stepClassName = 'border-primary ring-primary/20 ring-2'
+                } else if (isCompleted) {
+                  stepClassName = 'border-primary/40 bg-primary/5'
+                }
+
+                let stepNumberClassName =
+                  'border-muted-foreground/40 text-muted-foreground'
+                if (isActive || isCompleted) {
+                  stepNumberClassName =
+                    'border-primary bg-primary text-primary-foreground'
+                }
+
                 return (
                   <li
                     key={step.titleKey}
-                    className={cn(
-                      'rounded-xl border p-3',
-                      isActive
-                        ? 'border-primary ring-primary/20 ring-2'
-                        : isCompleted
-                          ? 'border-primary/40 bg-primary/5'
-                          : 'border-muted bg-card'
-                    )}
+                    className={cn('rounded-xl border p-3', stepClassName)}
                   >
                     <div className='flex items-start gap-3'>
                       <span
                         className={cn(
                           'flex size-6 items-center justify-center rounded-md border text-xs font-semibold',
-                          isActive
-                            ? 'border-primary bg-primary text-primary-foreground'
-                            : isCompleted
-                              ? 'border-primary bg-primary text-primary-foreground'
-                              : 'border-muted-foreground/40 text-muted-foreground'
+                          stepNumberClassName
                         )}
                       >
                         {index + 1}
@@ -364,23 +386,7 @@ export function SetupWizard() {
               })}
             </ol>
 
-            {isLoading ? (
-              <LoadingState message={t('Loading setup status…')} />
-            ) : isError ? (
-              <ErrorState
-                title={t('We could not load the setup status.')}
-                onRetry={() => refetch()}
-              />
-            ) : (
-              <Form {...form}>
-                <form
-                  className='space-y-6'
-                  onSubmit={(event) => event.preventDefault()}
-                >
-                  {currentStepComponent}
-                </form>
-              </Form>
-            )}
+            {setupStatusContent}
           </CardContent>
 
           {!isLoading && !isError && (

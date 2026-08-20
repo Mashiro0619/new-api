@@ -25,7 +25,6 @@ import { useStatus } from '@/hooks/use-status'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { CheckinCalendarCard } from './components/checkin-calendar-card'
-import { LanguagePreferencesCard } from './components/language-preferences-card'
 import { LoginSessionsCard } from './components/login-sessions-card'
 import { PasskeyCard } from './components/passkey-card'
 import { ProfileHeader } from './components/profile-header'
@@ -61,10 +60,6 @@ export function Profile() {
                 <ProfileSettingsCard
                   profile={profile}
                   loading={loading}
-                  onProfileUpdate={refreshProfile}
-                />
-                <LanguagePreferencesCard
-                  profile={profile}
                   onProfileUpdate={refreshProfile}
                 />
                 <ProfileSecurityCard profile={profile} loading={loading} />
