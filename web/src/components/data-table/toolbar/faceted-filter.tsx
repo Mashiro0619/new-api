@@ -49,6 +49,7 @@ type DataTableFacetedFilterProps<TData, TValue> = {
     icon?: React.ComponentType<{ className?: string }>
     iconNode?: React.ReactNode
     count?: number
+    translateLabel?: boolean
   }[]
   /** Enable single select mode (only one option can be selected at a time) */
   singleSelect?: boolean
@@ -112,7 +113,9 @@ function DataTableFacetedFilterInner<TData, TValue>({
                       key={option.value}
                       className='rounded-sm px-1 font-normal'
                     >
-                      {t(option.label)}
+                      {option.translateLabel === false
+                        ? option.label
+                        : t(option.label)}
                     </Badge>
                   ))
               )}
@@ -152,9 +155,15 @@ function DataTableFacetedFilterInner<TData, TValue>({
                     ) : null}
                     <span
                       className='min-w-0 flex-1 truncate'
-                      title={t(option.label)}
+                      title={
+                        option.translateLabel === false
+                          ? option.label
+                          : t(option.label)
+                      }
                     >
-                      {t(option.label)}
+                      {option.translateLabel === false
+                        ? option.label
+                        : t(option.label)}
                     </span>
                     {typeof option.count === 'number' ? (
                       <span className='text-muted-foreground ms-auto flex h-4 min-w-4 items-center justify-center font-mono text-xs'>

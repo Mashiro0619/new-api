@@ -39,6 +39,7 @@ type FilterDef = {
     icon?: React.ComponentType<{ className?: string }>
     iconNode?: React.ReactNode
     count?: number
+    translateLabel?: boolean
   }[]
   singleSelect?: boolean
 }

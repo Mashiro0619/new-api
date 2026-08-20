@@ -276,6 +276,7 @@ func SearchChannels(c *gin.Context) {
 	keyword := c.Query("keyword")
 	group := c.Query("group")
 	modelKeyword := c.Query("model")
+	modelFilters := model.NormalizeChannelModelFilters(strings.Split(c.Query("models"), ","))
 	statusParam := c.Query("status")
 	statusFilter := parseStatusFilter(statusParam)
 	idSort, _ := strconv.ParseBool(c.Query("id_sort"))
@@ -283,7 +284,7 @@ func SearchChannels(c *gin.Context) {
 	enableTagMode, _ := strconv.ParseBool(c.Query("tag_mode"))
 	channelData := make([]*model.Channel, 0)
 	if enableTagMode {
-		tags, err := model.SearchTags(keyword, group, modelKeyword, idSort)
+		tags, err := model.SearchTags(keyword, group, modelKeyword, modelFilters, idSort)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -294,7 +295,9 @@ func SearchChannels(c *gin.Context) {
 		for _, tag := range tags {
 			if tag != nil && *tag != "" {
 				var tagChannels []*model.Channel
-				err := sortOptions.Apply(buildChannelListQuery(group, -1, -1).Where("tag = ?", *tag)).
+				query := buildChannelListQuery(group, -1, -1).Where("tag = ?", *tag)
+				query = model.ApplyChannelModelsFilter(query, modelFilters)
+				err := sortOptions.Apply(query).
 					Omit("key").
 					Find(&tagChannels).Error
 				if err != nil {
@@ -308,7 +311,7 @@ func SearchChannels(c *gin.Context) {
 			}
 		}
 	} else {
-		channels, err := model.SearchChannels(keyword, group, modelKeyword, idSort, sortOptions)
+		channels, err := model.SearchChannels(keyword, group, modelKeyword, modelFilters, idSort, sortOptions)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,

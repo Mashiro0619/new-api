@@ -174,6 +174,12 @@ export interface SearchChannelsResponse {
   }
 }
 
+export interface ChannelProvidedModelsResponse {
+  success: boolean
+  message?: string
+  data?: string[]
+}
+
 export interface GetChannelResponse {
   success: boolean
   message?: string
@@ -288,6 +294,7 @@ export interface SearchChannelsParams {
   keyword?: string
   group?: string
   model?: string
+  models?: string
   status?: string
   type?: number
   id_sort?: boolean

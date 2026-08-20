@@ -46,7 +46,12 @@ import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
-import { getChannels, searchChannels, getGroups } from '../api'
+import {
+  getChannels,
+  getGroups,
+  getProvidedModels,
+  searchChannels,
+} from '../api'
 import {
   DEFAULT_PAGE_SIZE,
   CHANNEL_STATUS,
@@ -133,6 +138,7 @@ export function ChannelsTable() {
       },
       { columnId: 'type', searchKey: 'type', type: 'array' },
       { columnId: 'group', searchKey: 'group', type: 'array' },
+      { columnId: 'models', searchKey: 'models', type: 'array' },
       { columnId: 'model', searchKey: 'model', type: 'string' },
     ],
   })
@@ -162,6 +168,11 @@ export function ChannelsTable() {
   )
   const groupFilter =
     (columnFilters.find((f) => f.id === 'group')?.value as string[]) || []
+  const modelsFilter = useMemo(
+    () =>
+      (columnFilters.find((f) => f.id === 'models')?.value as string[]) || [],
+    [columnFilters]
+  )
   const {
     value: modelFilter,
     inputValue: modelFilterInput,
@@ -176,7 +187,9 @@ export function ChannelsTable() {
   })
 
   // Determine whether to use search or regular list API
-  const shouldSearch = Boolean(globalFilter?.trim() || modelFilter.trim())
+  const shouldSearch = Boolean(
+    globalFilter?.trim() || modelFilter.trim() || modelsFilter.length > 0
+  )
 
   const sortParams = useMemo(() => {
     const activeSort = sorting[0]
@@ -218,12 +231,38 @@ export function ChannelsTable() {
     [groupsData]
   )
 
+  const { data: providedModelsData } = useQuery({
+    queryKey: ['channel-provided-models'],
+    queryFn: getProvidedModels,
+  })
+
+  const modelFilterOptions = useMemo(() => {
+    const modelNames = new Set<string>()
+    for (const modelName of providedModelsData?.data || []) {
+      const normalized = modelName.trim()
+      if (normalized) modelNames.add(normalized)
+    }
+    for (const modelName of modelsFilter) {
+      const normalized = modelName.trim()
+      if (normalized) modelNames.add(normalized)
+    }
+
+    return [...modelNames]
+      .sort((a, b) => a.localeCompare(b))
+      .map((modelName) => ({
+        label: modelName,
+        value: modelName,
+        translateLabel: false,
+      }))
+  }, [modelsFilter, providedModelsData])
+
   // Fetch channels data
   // eslint-disable-next-line @tanstack/query/exhaustive-deps
   const { data, isLoading, isFetching } = useQuery({
     queryKey: channelsQueryKeys.list({
       keyword: globalFilter,
       model: modelFilter,
+      models: modelsFilter,
       group:
         groupFilter.length > 0 && !groupFilter.includes('all')
           ? groupFilter[0]
@@ -247,6 +286,7 @@ export function ChannelsTable() {
         return searchChannels({
           keyword: globalFilter,
           model: modelFilter,
+          models: modelsFilter.length > 0 ? modelsFilter.join(',') : undefined,
           group:
             groupFilter.length > 0 && !groupFilter.includes('all')
               ? groupFilter[0]
@@ -459,6 +499,11 @@ export function ChannelsTable() {
             title: t('Group'),
             options: groupFilterOptions,
             singleSelect: true,
+          },
+          {
+            columnId: 'models',
+            title: t('Models'),
+            options: modelFilterOptions,
           },
         ],
         preActions: (

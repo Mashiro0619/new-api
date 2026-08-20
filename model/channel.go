@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"sort"
 	"strings"
 	"sync"
 
@@ -161,6 +162,100 @@ func ApplyChannelGroupFilter(query *gorm.DB, group string) *gorm.DB {
 	return query.Where(channelGroupFilterCondition(), channelGroupFilterPattern(group))
 }
 
+// SplitChannelModels returns the non-empty model names configured in a
+// channel's comma-separated models field.
+func SplitChannelModels(models string) []string {
+	parts := strings.Split(models, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if modelName := strings.TrimSpace(part); modelName != "" {
+			result = append(result, modelName)
+		}
+	}
+	return result
+}
+
+// NormalizeChannelModelFilters removes empty and duplicate model filters while
+// preserving the order supplied by the caller.
+func NormalizeChannelModelFilters(models []string) []string {
+	seen := make(map[string]struct{}, len(models))
+	result := make([]string, 0, len(models))
+	for _, modelName := range models {
+		modelName = strings.TrimSpace(modelName)
+		if modelName == "" {
+			continue
+		}
+		if _, exists := seen[modelName]; exists {
+			continue
+		}
+		seen[modelName] = struct{}{}
+		result = append(result, modelName)
+	}
+	return result
+}
+
+func channelModelsColumn() string {
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+		return `"models"`
+	}
+	return "`models`"
+}
+
+func channelModelFilterCondition() string {
+	if common.UsingMainDatabase(common.DatabaseTypeMySQL) {
+		return "CONCAT(',', " + channelModelsColumn() + ", ',') LIKE ? ESCAPE '!'"
+	}
+	return "(',' || " + channelModelsColumn() + " || ',') LIKE ? ESCAPE '!'"
+}
+
+func channelModelFilterPattern(modelName string) string {
+	modelName = strings.NewReplacer(
+		"!", "!!",
+		"%", "!%",
+		"_", "!_",
+	).Replace(modelName)
+	return "%," + modelName + ",%"
+}
+
+// ApplyChannelModelsFilter matches complete comma-separated model entries.
+// Multiple model filters are combined with OR semantics.
+func ApplyChannelModelsFilter(query *gorm.DB, models []string) *gorm.DB {
+	models = NormalizeChannelModelFilters(models)
+	if len(models) == 0 {
+		return query
+	}
+
+	conditions := make([]string, 0, len(models))
+	args := make([]any, 0, len(models))
+	for _, modelName := range models {
+		conditions = append(conditions, channelModelFilterCondition())
+		args = append(args, channelModelFilterPattern(modelName))
+	}
+	return query.Where("("+strings.Join(conditions, " OR ")+")", args...)
+}
+
+// GetProvidedModels returns the unique model names present in channel models
+// fields, independent of channel abilities or model mappings.
+func GetProvidedModels() ([]string, error) {
+	var configuredModels []string
+	if err := DB.Model(&Channel{}).Pluck("models", &configuredModels).Error; err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]struct{})
+	for _, configured := range configuredModels {
+		for _, modelName := range SplitChannelModels(configured) {
+			seen[modelName] = struct{}{}
+		}
+	}
+	models := make([]string, 0, len(seen))
+	for modelName := range seen {
+		models = append(models, modelName)
+	}
+	sort.Strings(models)
+	return models, nil
+}
+
 // Value implements driver.Valuer interface
 func (c ChannelInfo) Value() (driver.Value, error) {
 	return common.Marshal(&c)
@@ -287,10 +382,7 @@ func (channel *Channel) SaveChannelInfo() error {
 }
 
 func (channel *Channel) GetModels() []string {
-	if channel.Models == "" {
-		return []string{}
-	}
-	return strings.Split(strings.Trim(channel.Models, ","), ",")
+	return SplitChannelModels(channel.Models)
 }
 
 func (channel *Channel) GetGroups() []string {
@@ -386,7 +478,7 @@ func GetChannelsByTag(tag string, idSort bool, selectAll bool, sortOptions ...Ch
 	return channels, err
 }
 
-func SearchChannels(keyword string, group string, model string, idSort bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
+func SearchChannels(keyword string, group string, model string, models []string, idSort bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
 	var channels []*Channel
 	modelsCol := "`models`"
 
@@ -410,6 +502,7 @@ func SearchChannels(keyword string, group string, model string, idSort bool, sor
 	whereClause := "(id = ? OR name LIKE ? OR " + commonKeyCol + " = ? OR " + baseURLCol + " LIKE ?) AND " + modelsCol + " LIKE ?"
 	args := []any{common.String2Int(keyword), "%" + keyword + "%", keyword, "%" + keyword + "%", "%" + model + "%"}
 	baseQuery = ApplyChannelGroupFilter(baseQuery.Where(whereClause, args...), group)
+	baseQuery = ApplyChannelModelsFilter(baseQuery, models)
 
 	// 执行查询
 	err := order.Apply(baseQuery).Find(&channels).Error
@@ -910,7 +1003,7 @@ func GetPaginatedChannelTags(query *gorm.DB, offset int, limit int) ([]*string, 
 	return tags, err
 }
 
-func SearchTags(keyword string, group string, model string, idSort bool) ([]*string, error) {
+func SearchTags(keyword string, group string, model string, models []string, idSort bool) ([]*string, error) {
 	var tags []*string
 	modelsCol := "`models`"
 
@@ -937,6 +1030,7 @@ func SearchTags(keyword string, group string, model string, idSort bool) ([]*str
 	whereClause := "(id = ? OR name LIKE ? OR " + commonKeyCol + " = ? OR " + baseURLCol + " LIKE ?) AND " + modelsCol + " LIKE ?"
 	args := []any{common.String2Int(keyword), "%" + keyword + "%", keyword, "%" + keyword + "%", "%" + model + "%"}
 	baseQuery = ApplyChannelGroupFilter(baseQuery.Where(whereClause, args...), group)
+	baseQuery = ApplyChannelModelsFilter(baseQuery, models)
 
 	subQuery := baseQuery.
 		Select("tag").

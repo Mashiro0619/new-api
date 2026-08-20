@@ -26,6 +26,7 @@ import type {
   Channel,
   ChannelBalanceResponse,
   ChannelOpsResponse,
+  ChannelProvidedModelsResponse,
   ChannelTestResponse,
   CopyChannelParams,
   CopyChannelResponse,
@@ -94,6 +95,14 @@ export async function searchChannels(
   params: SearchChannelsParams
 ): Promise<SearchChannelsResponse> {
   const res = await api.get('/api/channel/search', { params })
+  return res.data
+}
+
+/**
+ * Get model names explicitly configured on channels.
+ */
+export async function getProvidedModels(): Promise<ChannelProvidedModelsResponse> {
+  const res = await api.get('/api/channel/models_provided')
   return res.data
 }
 

@@ -313,6 +313,20 @@ func ChannelListModels(c *gin.Context) {
 	})
 }
 
+// ChannelProvidedModels lists the model names explicitly configured on
+// channels. It intentionally does not use model mappings or abilities.
+func ChannelProvidedModels(c *gin.Context) {
+	models, err := model.GetProvidedModels()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    models,
+	})
+}
+
 func DashboardListModels(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"success": true,
