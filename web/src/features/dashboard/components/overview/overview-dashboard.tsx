@@ -30,7 +30,6 @@ import { ApiInfoPanel } from './api-info-panel'
 import { FAQPanel } from './faq-panel'
 import { PerformanceHealthPanel } from './performance-health-panel'
 import { SummaryCards } from './summary-cards'
-import { UptimePanel } from './uptime-panel'
 
 export function OverviewDashboard() {
   const user = useAuthStore((state) => state.auth.user)
@@ -38,28 +37,19 @@ export function OverviewDashboard() {
     apiInfo: showApiInfoPanel,
     announcements: showAnnouncementsPanel,
     faq: showFAQPanel,
-    uptimeKuma: showUptimePanel,
   } = useDashboardContentVisibility()
 
   const isAdmin = Boolean(user?.role && user.role >= ROLE.ADMIN)
   const showLeftContentPanels =
     isAdmin || showApiInfoPanel || showAnnouncementsPanel || showFAQPanel
-  const showContentPanels = showLeftContentPanels || showUptimePanel
+  const showContentPanels = showLeftContentPanels
 
   return (
     <div className='flex flex-col gap-4'>
-
       <SummaryCards />
 
       {showContentPanels && (
-        <CardStaggerContainer
-          className={cn(
-            'grid grid-cols-1 gap-4',
-            showLeftContentPanels &&
-              showUptimePanel &&
-              'xl:grid-cols-[minmax(0,1fr)_22rem]'
-          )}
-        >
+        <CardStaggerContainer className='grid grid-cols-1 gap-4'>
           {showLeftContentPanels && (
             <div
               className={cn(
@@ -89,11 +79,6 @@ export function OverviewDashboard() {
                 </CardStaggerItem>
               )}
             </div>
-          )}
-          {showUptimePanel && (
-            <CardStaggerItem>
-              <UptimePanel />
-            </CardStaggerItem>
           )}
         </CardStaggerContainer>
       )}
