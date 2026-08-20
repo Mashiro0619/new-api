@@ -21,9 +21,11 @@ import { afterEach, describe, expect, test } from 'vitest'
 
 import { useAuthStore, type AuthBundle } from '../stores/auth-store'
 import {
+  applyAuthBundle,
   applyAuthRotation,
   bootstrapAuthentication,
   clearAuthenticatedClientState,
+  consumeAuthLoginEvent,
   createRefreshRunner,
   isAuthBundle,
   type AuthRefreshRuntime,
@@ -52,9 +54,20 @@ const bundle: AuthBundle = {
 
 afterEach(() => {
   useAuthStore.getState().auth.reset('idle')
+  window.sessionStorage.clear()
 })
 
 describe('authentication session coordination', () => {
+  test('marks only a new synchronized session as a login event', () => {
+    applyAuthBundle(bundle)
+
+    expect(consumeAuthLoginEvent(bundle.session.sid)).toBe(true)
+    expect(consumeAuthLoginEvent(bundle.session.sid)).toBe(false)
+
+    applyAuthBundle(bundle, false)
+    expect(consumeAuthLoginEvent(bundle.session.sid)).toBe(false)
+  })
+
   test('bootstrap distinguishes a completed anonymous check from an active session', async () => {
     useAuthStore.getState().auth.reset('complete')
     expect(await bootstrapAuthentication()).toEqual({ kind: 'anonymous' })

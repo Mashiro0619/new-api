@@ -77,6 +77,33 @@ const authClient = axios.create({
 const refreshRaceDelays = [80, 200, 500] as const
 let refreshPromise: Promise<RefreshOutcome> | null = null
 let authEpoch = 0
+const AUTH_LOGIN_EVENT_STORAGE_KEY = 'new-api:login-event'
+
+function markAuthLoginEvent(sessionId: string): void {
+  if (typeof window === 'undefined') return
+
+  try {
+    window.sessionStorage.setItem(AUTH_LOGIN_EVENT_STORAGE_KEY, sessionId)
+  } catch {
+    // Session storage may be unavailable in privacy-restricted contexts.
+  }
+}
+
+export function consumeAuthLoginEvent(sessionId: string): boolean {
+  if (typeof window === 'undefined') return false
+
+  try {
+    const markedSessionId = window.sessionStorage.getItem(
+      AUTH_LOGIN_EVENT_STORAGE_KEY
+    )
+    if (markedSessionId !== sessionId) return false
+
+    window.sessionStorage.removeItem(AUTH_LOGIN_EVENT_STORAGE_KEY)
+    return true
+  } catch {
+    return false
+  }
+}
 
 class AuthRefreshSupersededError extends Error {
   constructor() {
@@ -150,9 +177,11 @@ export function applyAuthBundle(
   synchronizeTabs = true
 ): void {
   const previousSID = useAuthStore.getState().auth.session?.sid
+  const isNewSession = previousSID !== bundle.session.sid
   authEpoch += 1
   useAuthStore.getState().auth.setBundle(bundle)
-  if (synchronizeTabs && previousSID !== bundle.session.sid) {
+  if (synchronizeTabs && isNewSession) {
+    markAuthLoginEvent(bundle.session.sid)
     publishAuthSessionEvent('authenticated', bundle.session.sid)
   }
 }

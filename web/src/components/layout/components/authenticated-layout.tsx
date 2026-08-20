@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { AnimatedOutlet } from '@/components/page-transition'
 import { SkipToMain } from '@/components/skip-to-main'
+import { SystemAnnouncementDialog } from '@/components/system-announcement-dialog'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { LayoutProvider } from '@/context/layout-provider'
 import { SearchProvider } from '@/context/search-provider'
@@ -40,6 +41,7 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
         <SidebarProvider defaultOpen={defaultOpen} className='flex-col'>
           <SkipToMain />
           <AppHeader />
+          <SystemAnnouncementDialog />
           <div className='flex min-h-0 w-full flex-1'>
             <AppSidebar />
             <SidebarInset
