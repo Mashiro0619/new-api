@@ -334,6 +334,7 @@ function ChannelTestDialogContent({
   > | null>(null)
   const [endpointType, setEndpointType] = useState('auto')
   const [isStreamTest, setIsStreamTest] = useState(false)
+  const [isLongPromptTest, setIsLongPromptTest] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({})
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -401,6 +402,7 @@ function ChannelTestDialogContent({
     batchStopRequestedRef.current = true
     setEndpointType('auto')
     setIsStreamTest(false)
+    setIsLongPromptTest(false)
     setSearchTerm('')
     setTestResults({})
     setRowSelection({})
@@ -562,6 +564,7 @@ function ChannelTestDialogContent({
             testModel: model,
             endpointType: endpointType === 'auto' ? undefined : endpointType,
             stream: effectiveStreamTest || undefined,
+            longPrompt: isLongPromptTest || undefined,
             silent,
           },
           (success, responseTime, error, errorCode) => {
@@ -600,6 +603,7 @@ function ChannelTestDialogContent({
       currentRow,
       endpointType,
       effectiveStreamTest,
+      isLongPromptTest,
       markModelTesting,
       refreshChannelLists,
       t,
@@ -1047,6 +1051,24 @@ function ChannelTestDialogContent({
               </div>
               <p className='text-muted-foreground text-xs'>
                 {t('Enable streaming mode for the test request.')}
+              </p>
+            </div>
+            <div className='grid gap-2'>
+              <Label htmlFor='long-prompt-toggle'>
+                {t('Long Prompt Test')}
+              </Label>
+              <div className='flex items-center gap-2'>
+                <Switch
+                  id='long-prompt-toggle'
+                  checked={isLongPromptTest}
+                  onCheckedChange={setIsLongPromptTest}
+                />
+                <span className='text-sm'>
+                  {isLongPromptTest ? t('Enabled') : t('Disabled')}
+                </span>
+              </div>
+              <p className='text-muted-foreground text-xs'>
+                {t('Send a 10k+ token prompt for upstream liveness checks.')}
               </p>
             </div>
           </div>

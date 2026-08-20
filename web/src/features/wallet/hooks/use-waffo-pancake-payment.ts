@@ -59,18 +59,16 @@ function getErrorMessage(message: string | undefined, data: unknown): string {
   return message || i18next.t('Payment request failed')
 }
 
-/**
- * Hook for the Waffo Pancake hosted-checkout flow.
- *
- * Same-tab redirect (window.location.href) rather than window.open: the
- * user-gesture context is lost across the await, so popups get blocked.
- */
+/** Hook for the Waffo Pancake hosted-checkout flow. */
 export function useWaffoPancakePayment() {
   const [processing, setProcessing] = useState(false)
 
   const processWaffoPancakePayment = useCallback(
     async (topupAmount: number) => {
       setProcessing(true)
+      // Open synchronously while the confirmation click is still trusted by
+      // the browser. The checkout URL arrives after the API request.
+      const checkoutWindow = window.open('', '_blank')
 
       try {
         const response = await requestWaffoPancakePayment({
@@ -82,18 +80,25 @@ export function useWaffoPancakePayment() {
 
           if (checkoutUrl) {
             if (!isSafeHttpCheckoutUrl(checkoutUrl)) {
+              checkoutWindow?.close()
               toast.error(i18next.t('Invalid payment redirect URL'))
               return false
             }
             toast.success(i18next.t('Redirecting to payment page...'))
-            window.location.href = checkoutUrl
+            if (checkoutWindow) {
+              checkoutWindow.location.href = checkoutUrl
+            } else {
+              window.open(checkoutUrl, '_blank')
+            }
             return true
           }
         }
 
+        checkoutWindow?.close()
         toast.error(getErrorMessage(response.message, response.data))
         return false
-      } catch (_error) {
+      } catch {
+        checkoutWindow?.close()
         toast.error(i18next.t('Payment request failed'))
         return false
       } finally {

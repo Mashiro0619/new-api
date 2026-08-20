@@ -92,6 +92,12 @@ export function usePayment() {
   const [amount, setAmount] = useState<number>(0)
   const [calculating, setCalculating] = useState(false)
   const [processing, setProcessing] = useState(false)
+  const [pendingPerPayTradeNo, setPendingPerPayTradeNo] = useState<
+    string | null
+  >(null)
+  const clearPendingPerPayTradeNo = useCallback(() => {
+    setPendingPerPayTradeNo(null)
+  }, [])
 
   // Calculate payment amount
   const calculatePaymentAmount = useCallback(
@@ -122,15 +128,20 @@ export function usePayment() {
   // Process payment
   const processPayment = useCallback(
     async (topupAmount: number, paymentType: string) => {
+      let redirectWindow: Window | null = null
       try {
         setProcessing(true)
 
         const isPerPay = isPerPayPayment(paymentType)
         if (isPerPay) {
+          // Open synchronously while the confirmation click is still trusted by
+          // the browser. The checkout URL arrives after the API request.
+          redirectWindow = window.open('', '_blank')
           const response = await requestPerPayPayment({
             amount: Math.floor(topupAmount),
           })
           if (!isApiSuccess(response)) {
+            redirectWindow?.close()
             toast.error(
               getApiErrorMessage(response) ||
                 i18next.t('Payment request failed')
@@ -139,16 +150,30 @@ export function usePayment() {
           }
           const checkoutUrl = response.data?.checkout_url
           if (!checkoutUrl || !isSafePerPayCheckoutUrl(checkoutUrl)) {
+            redirectWindow?.close()
             toast.error(i18next.t('Invalid payment redirect URL'))
             return false
           }
+          const tradeNo = response.data?.trade_no?.trim()
+          if (tradeNo) {
+            setPendingPerPayTradeNo(tradeNo)
+          }
           toast.success(i18next.t('Redirecting to payment page...'))
-          window.location.href = checkoutUrl
+          if (redirectWindow) {
+            redirectWindow.location.href = checkoutUrl
+          } else {
+            window.open(checkoutUrl, '_blank')
+          }
           return true
         }
 
         const isStripe = isStripePayment(paymentType)
         const amount = Math.floor(topupAmount)
+        if (isStripe) {
+          // Keep the new tab tied to the confirmation click while the payment
+          // session is being created.
+          redirectWindow = window.open('', '_blank')
+        }
 
         const response = isStripe
           ? await requestStripePayment({
@@ -161,6 +186,7 @@ export function usePayment() {
             })
 
         if (!isApiSuccess(response)) {
+          redirectWindow?.close()
           toast.error(
             getApiErrorMessage(response) || i18next.t('Payment request failed')
           )
@@ -168,11 +194,23 @@ export function usePayment() {
         }
 
         // Handle Stripe payment
-        if (isStripe && response.data?.pay_link) {
-          window.open(response.data.pay_link as string, '_blank')
+        const payLink =
+          response.data &&
+          typeof response.data === 'object' &&
+          'pay_link' in response.data
+            ? response.data.pay_link
+            : null
+        if (isStripe && typeof payLink === 'string' && payLink) {
+          if (redirectWindow) {
+            redirectWindow.location.href = payLink
+          } else {
+            window.open(payLink, '_blank')
+          }
           toast.success(i18next.t('Redirecting to payment page...'))
           return true
         }
+
+        redirectWindow?.close()
 
         // Handle non-Stripe payment
         if (!isStripe && response.data) {
@@ -186,6 +224,7 @@ export function usePayment() {
 
         return false
       } catch {
+        redirectWindow?.close()
         toast.error(i18next.t('Payment request failed'))
         return false
       } finally {
@@ -202,6 +241,8 @@ export function usePayment() {
     calculatePaymentAmount,
     processPayment,
     setAmount,
+    pendingPerPayTradeNo,
+    clearPendingPerPayTradeNo,
   }
 }
 

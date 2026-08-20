@@ -51,6 +51,7 @@ export function useWaffoPayment() {
   const processWaffoPayment = useCallback(
     async (topupAmount: number, payMethodIndex?: number) => {
       setProcessing(true)
+      const paymentWindow = window.open('', '_blank')
 
       try {
         const response = await requestWaffoPayment({
@@ -62,15 +63,21 @@ export function useWaffoPayment() {
           const paymentUrl = getPaymentUrl(response.data)
 
           if (paymentUrl) {
-            window.open(paymentUrl, '_blank')
+            if (paymentWindow) {
+              paymentWindow.location.href = paymentUrl
+            } else {
+              window.open(paymentUrl, '_blank')
+            }
             toast.success(i18next.t('Redirecting to payment page...'))
             return true
           }
         }
 
+        paymentWindow?.close()
         toast.error(getErrorMessage(response.message, response.data))
         return false
       } catch {
+        paymentWindow?.close()
         toast.error(i18next.t('Payment request failed'))
         return false
       } finally {

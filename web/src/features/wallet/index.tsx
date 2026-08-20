@@ -24,10 +24,12 @@ import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
 
+import { getUserBillingHistory, isApiSuccess } from './api'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
+import { PaymentSuccessDialog } from './components/dialogs/payment-success-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
@@ -53,7 +55,11 @@ import type {
   PresetAmount,
   CreemProduct,
   WaffoPayMethod,
+  TopupRecord,
 } from './types'
+
+const PERPAY_POLL_INTERVAL_MS = 2500
+const PERPAY_POLL_TIMEOUT_MS = 10 * 60 * 1000
 
 interface WalletProps {
   initialShowHistory?: boolean
@@ -78,6 +84,8 @@ export function Wallet(props: WalletProps) {
   const [creemDialogOpen, setCreemDialogOpen] = useState(false)
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
+  const [paymentSuccessRecord, setPaymentSuccessRecord] =
+    useState<TopupRecord | null>(null)
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
 
   const { status } = useStatus()
@@ -96,6 +104,8 @@ export function Wallet(props: WalletProps) {
     processing,
     calculatePaymentAmount,
     processPayment,
+    pendingPerPayTradeNo,
+    clearPendingPerPayTradeNo,
   } = usePayment()
   const {
     affiliateLink,
@@ -128,6 +138,55 @@ export function Wallet(props: WalletProps) {
   useEffect(() => {
     fetchUser()
   }, [fetchUser])
+
+  // PerPay confirms payment through a server-to-server callback. Poll the
+  // user's billing records so the browser can react as soon as that callback
+  // has credited the order.
+  useEffect(() => {
+    if (!pendingPerPayTradeNo) return
+
+    let stopped = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const startedAt = Date.now()
+    const tradeNo = pendingPerPayTradeNo
+
+    const poll = async () => {
+      try {
+        const response = await getUserBillingHistory(1, 20, tradeNo)
+        const record = isApiSuccess(response)
+          ? response.data?.items?.find((item) => item.trade_no === tradeNo)
+          : undefined
+
+        if (!stopped && record?.status === 'success') {
+          await fetchUser()
+          if (stopped) return
+          setPaymentSuccessRecord(record)
+          clearPendingPerPayTradeNo()
+          return
+        }
+
+        if (!stopped && record?.status === 'expired') {
+          clearPendingPerPayTradeNo()
+          return
+        }
+      } catch {
+        // A transient history request failure should not stop payment polling.
+      }
+
+      if (stopped) return
+      if (Date.now() - startedAt >= PERPAY_POLL_TIMEOUT_MS) {
+        clearPendingPerPayTradeNo()
+        return
+      }
+      timer = setTimeout(() => void poll(), PERPAY_POLL_INTERVAL_MS)
+    }
+
+    void poll()
+    return () => {
+      stopped = true
+      if (timer) clearTimeout(timer)
+    }
+  }, [clearPendingPerPayTradeNo, fetchUser, pendingPerPayTradeNo])
 
   useEffect(() => {
     if (props.initialShowHistory) {
@@ -211,7 +270,9 @@ export function Wallet(props: WalletProps) {
 
     if (success) {
       setConfirmDialogOpen(false)
-      await fetchUser()
+      if (selectedPaymentMethod.type !== PAYMENT_TYPES.PERPAY) {
+        await fetchUser()
+      }
     }
   }
 
@@ -371,6 +432,14 @@ export function Wallet(props: WalletProps) {
         processing={processing || waffoProcessing || pancakeProcessing}
         discountRate={getDiscountRate()}
         usdExchangeRate={effectiveUsdExchangeRate}
+      />
+
+      <PaymentSuccessDialog
+        open={paymentSuccessRecord !== null}
+        onOpenChange={(open) => {
+          if (!open) setPaymentSuccessRecord(null)
+        }}
+        record={paymentSuccessRecord}
       />
 
       <TransferDialog

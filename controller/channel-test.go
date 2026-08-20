@@ -69,7 +69,7 @@ func resolveChannelTestUserID(c *gin.Context) (int, error) {
 	return rootUser.Id, nil
 }
 
-func testChannel(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool) testResult {
+func testChannel(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool, longPrompt bool) testResult {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -226,7 +226,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		}
 	}
 
-	request := buildTestRequest(testModel, endpointType, channel, isStream)
+	request := buildTestRequest(testModel, endpointType, channel, isStream, longPrompt)
 
 	info, err := relaycommon.GenRelayInfo(c, relayFormat, request, nil)
 
@@ -703,8 +703,30 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 	return message
 }
 
-func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool) dto.Request {
-	testResponsesInput := json.RawMessage(`[{"role":"user","content":"hi"}]`)
+const longTestPromptRepeatCount = 1600
+
+func buildLongTestPrompt() string {
+	const sentence = "Please verify this channel connectivity test and respond briefly. "
+	return strings.Repeat(sentence, longTestPromptRepeatCount)
+}
+
+func buildTestResponsesInput(prompt string) json.RawMessage {
+	input, err := common.Marshal([]map[string]string{{
+		"role":    "user",
+		"content": prompt,
+	}})
+	if err != nil {
+		return json.RawMessage(`[]`)
+	}
+	return json.RawMessage(input)
+}
+
+func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool, longPrompt bool) dto.Request {
+	testPrompt := "hi"
+	if longPrompt {
+		testPrompt = buildLongTestPrompt()
+	}
+	testResponsesInput := buildTestResponsesInput(testPrompt)
 
 	// 根据端点类型构建不同的测试请求
 	if endpointType != "" {
@@ -713,13 +735,13 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			// 返回 EmbeddingRequest
 			return &dto.EmbeddingRequest{
 				Model: model,
-				Input: []any{"hello world"},
+				Input: []any{testPrompt},
 			}
 		case constant.EndpointTypeImageGeneration:
 			// 返回 ImageRequest
 			return &dto.ImageRequest{
 				Model:  model,
-				Prompt: "a cute cat",
+				Prompt: testPrompt,
 				N:      lo.ToPtr(uint(1)),
 				Size:   "1024x1024",
 			}
@@ -727,7 +749,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			// 返回 RerankRequest
 			return &dto.RerankRequest{
 				Model:     model,
-				Query:     "What is Deep Learning?",
+				Query:     testPrompt,
 				Documents: []any{"Deep Learning is a subset of machine learning.", "Machine learning is a field of artificial intelligence."},
 				TopN:      lo.ToPtr(2),
 			}
@@ -735,7 +757,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			// 返回 OpenAIResponsesRequest
 			return &dto.OpenAIResponsesRequest{
 				Model:  model,
-				Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),
+				Input:  testResponsesInput,
 				Stream: lo.ToPtr(isStream),
 			}
 		case constant.EndpointTypeOpenAIResponseCompact:
@@ -752,7 +774,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				Messages: []dto.ClaudeMessage{
 					{
 						Role:    "user",
-						Content: "hi",
+						Content: testPrompt,
 					},
 				},
 			}
@@ -761,7 +783,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				Contents: []dto.GeminiChatContent{
 					{
 						Role:  "user",
-						Parts: []dto.GeminiPart{{Text: "hi"}},
+						Parts: []dto.GeminiPart{{Text: testPrompt}},
 					},
 				},
 				GenerationConfig: dto.GeminiChatGenerationConfig{
@@ -775,7 +797,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				Messages: []dto.Message{
 					{
 						Role:    "user",
-						Content: "hi",
+						Content: testPrompt,
 					},
 				},
 				MaxTokens: lo.ToPtr(uint(16)),
@@ -791,7 +813,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	if strings.Contains(strings.ToLower(model), "rerank") {
 		return &dto.RerankRequest{
 			Model:     model,
-			Query:     "What is Deep Learning?",
+			Query:     testPrompt,
 			Documents: []any{"Deep Learning is a subset of machine learning.", "Machine learning is a field of artificial intelligence."},
 			TopN:      lo.ToPtr(2),
 		}
@@ -804,7 +826,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		// 返回 EmbeddingRequest
 		return &dto.EmbeddingRequest{
 			Model: model,
-			Input: []any{"hello world"},
+			Input: []any{testPrompt},
 		}
 	}
 
@@ -812,7 +834,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	if strings.Contains(strings.ToLower(model), "codex") {
 		return &dto.OpenAIResponsesRequest{
 			Model:  model,
-			Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),
+			Input:  testResponsesInput,
 			Stream: lo.ToPtr(isStream),
 		}
 	}
@@ -824,7 +846,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		Messages: []dto.Message{
 			{
 				Role:    "user",
-				Content: "hi",
+				Content: testPrompt,
 			},
 		},
 	}
@@ -879,7 +901,8 @@ func TestChannel(c *gin.Context) {
 	if c.Request != nil {
 		requestCtx = c.Request.Context()
 	}
-	result := testChannel(requestCtx, channel, testUserID, testModel, endpointType, isStream)
+	longPrompt, _ := strconv.ParseBool(c.Query("long_prompt"))
+	result := testChannel(requestCtx, channel, testUserID, testModel, endpointType, isStream, longPrompt)
 	if result.localErr != nil {
 		resp := gin.H{
 			"success": false,
@@ -946,7 +969,7 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 		}
 		isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 		tik := time.Now()
-		result := testChannel(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel))
+		result := testChannel(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel), false)
 		tok := time.Now()
 		milliseconds := tok.Sub(tik).Milliseconds()
 		if ctx != nil && ctx.Err() != nil {

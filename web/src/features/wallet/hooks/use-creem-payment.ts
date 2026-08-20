@@ -30,6 +30,7 @@ export function useCreemPayment() {
 
   const processCreemPayment = useCallback(async (productId: string) => {
     setProcessing(true)
+    const checkoutWindow = window.open('', '_blank')
     try {
       const response = await requestCreemPayment({
         product_id: productId,
@@ -37,14 +38,20 @@ export function useCreemPayment() {
       })
 
       if (isApiSuccess(response) && response.data?.checkout_url) {
-        window.open(response.data.checkout_url, '_blank')
+        if (checkoutWindow) {
+          checkoutWindow.location.href = response.data.checkout_url
+        } else {
+          window.open(response.data.checkout_url, '_blank')
+        }
         toast.success(i18next.t('Redirecting to Creem checkout...'))
         return true
       }
 
+      checkoutWindow?.close()
       toast.error(response.message || i18next.t('Payment request failed'))
       return false
-    } catch (_error) {
+    } catch {
+      checkoutWindow?.close()
       toast.error(i18next.t('Payment request failed'))
       return false
     } finally {
