@@ -234,6 +234,15 @@ func ApplyChannelModelsFilter(query *gorm.DB, models []string) *gorm.DB {
 	return query.Where("("+strings.Join(conditions, " OR ")+")", args...)
 }
 
+// ApplyChannelModelKeywordFilter preserves the existing fuzzy model search
+// behavior for queries that load channels after a Tag search.
+func ApplyChannelModelKeywordFilter(query *gorm.DB, modelKeyword string) *gorm.DB {
+	if modelKeyword == "" {
+		return query
+	}
+	return query.Where(channelModelsColumn()+" LIKE ?", "%"+modelKeyword+"%")
+}
+
 // GetProvidedModels returns the unique model names present in channel models
 // fields, independent of channel abilities or model mappings.
 func GetProvidedModels() ([]string, error) {

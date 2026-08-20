@@ -296,6 +296,7 @@ func SearchChannels(c *gin.Context) {
 			if tag != nil && *tag != "" {
 				var tagChannels []*model.Channel
 				query := buildChannelListQuery(group, -1, -1).Where("tag = ?", *tag)
+				query = model.ApplyChannelModelKeywordFilter(query, modelKeyword)
 				query = model.ApplyChannelModelsFilter(query, modelFilters)
 				err := sortOptions.Apply(query).
 					Omit("key").
