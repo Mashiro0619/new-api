@@ -51,6 +51,10 @@ func TestChannelModelFiltersMatchCompleteEntriesWithOrAndTextSearch(t *testing.T
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []int{channels[0].Id, channels[2].Id}, channelIDs(matched))
 
+	matched, err = SearchChannels("", "", "", []string{"gpt-4o-mini"}, false)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []int{channels[0].Id, channels[1].Id}, channelIDs(matched))
+
 	matched, err = SearchChannels("", "", "mini", []string{"gpt-4o"}, false)
 	require.NoError(t, err)
 	assert.Equal(t, []int{channels[0].Id}, channelIDs(matched))

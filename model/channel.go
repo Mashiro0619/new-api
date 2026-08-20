@@ -201,11 +201,16 @@ func channelModelsColumn() string {
 	return "`models`"
 }
 
+func channelModelsExpression() string {
+	column := channelModelsColumn()
+	return "REPLACE(REPLACE(" + column + ", ', ', ','), ' ,', ',')"
+}
+
 func channelModelFilterCondition() string {
 	if common.UsingMainDatabase(common.DatabaseTypeMySQL) {
-		return "CONCAT(',', " + channelModelsColumn() + ", ',') LIKE ? ESCAPE '!'"
+		return "CONCAT(',', " + channelModelsExpression() + ", ',') LIKE ? ESCAPE '!'"
 	}
-	return "(',' || " + channelModelsColumn() + " || ',') LIKE ? ESCAPE '!'"
+	return "(',' || " + channelModelsExpression() + " || ',') LIKE ? ESCAPE '!'"
 }
 
 func channelModelFilterPattern(modelName string) string {
