@@ -23,8 +23,8 @@ import { useTranslation } from 'react-i18next'
 
 import { StaticDataTable } from '@/components/data-table'
 import { SectionPageLayout } from '@/components/layout'
-import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
+import { useStatus } from '@/hooks/use-status'
 
 import { getSiteModelCallModels, getSiteModelCallSummary } from './api'
 import { parseSiteModelCallsConfig } from './config'
@@ -63,6 +63,9 @@ export function SiteModelCalls() {
             success_count: 0,
             failure_count: 0,
             success_rate: 0,
+            total_tokens: 0,
+            cache_read_tokens: 0,
+            cache_hit_rate: 0,
           }
       )
       .sort((a, b) => {
@@ -71,7 +74,11 @@ export function SiteModelCalls() {
         }
         return a.model_name.localeCompare(b.model_name)
       })
-  }, [modelsQuery.data?.data, status?.AllSiteModelCalls, summaryQuery.data?.data])
+  }, [
+    modelsQuery.data?.data,
+    status?.AllSiteModelCalls,
+    summaryQuery.data?.data,
+  ])
 
   const isLoading = summaryQuery.isLoading || modelsQuery.isLoading
   const error = summaryQuery.error ?? modelsQuery.error
@@ -139,6 +146,20 @@ export function SiteModelCalls() {
               cellClassName: 'text-right tabular-nums',
               cell: (row) => `${row.success_rate.toFixed(2)}%`,
             },
+            {
+              id: 'tokens',
+              header: t('Total Tokens'),
+              className: 'text-right',
+              cellClassName: 'text-right tabular-nums',
+              cell: (row) => numberFormatter.format(row.total_tokens),
+            },
+            {
+              id: 'cache-rate',
+              header: t('Cache Hit Rate'),
+              className: 'text-right',
+              cellClassName: 'text-right tabular-nums',
+              cell: (row) => `${row.cache_hit_rate.toFixed(2)}%`,
+            },
           ]}
         />
       </div>
@@ -147,7 +168,9 @@ export function SiteModelCalls() {
 
   return (
     <SectionPageLayout fixedContent>
-      <SectionPageLayout.Title>{t('All-site model calls')}</SectionPageLayout.Title>
+      <SectionPageLayout.Title>
+        {t('All-site model calls')}
+      </SectionPageLayout.Title>
       <SectionPageLayout.Actions>
         <Button
           variant='outline'
