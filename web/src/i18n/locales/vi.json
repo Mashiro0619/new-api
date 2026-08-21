@@ -2033,6 +2033,7 @@
     "Filter...": "Lọc...",
     "Filters": "Bộ lọc",
     "Filters active": "Bộ lọc đang bật",
+    "Final amount is subject to the checkout page": "Số tiền cuối cùng theo hiển thị trên trang thanh toán",
     "Final Consumed": "Tiêu thụ cuối cùng",
     "Final cost = base × multiplier when conditions match": "Chi phí cuối = cơ sở × hệ số khi thỏa điều kiện",
     "Final price multiplier (0.95 = 5% discount": "Hệ số nhân giá cuối cùng (0.95 = giảm giá 5%)",

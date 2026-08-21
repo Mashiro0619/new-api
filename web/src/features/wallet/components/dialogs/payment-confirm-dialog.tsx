@@ -42,6 +42,7 @@ interface PaymentConfirmDialogProps {
   onConfirm: () => void
   topupAmount: number
   paymentAmount: number
+  actualPaymentAmount?: number
   paymentMethod: PaymentMethod | undefined
   calculating: boolean
   processing: boolean
@@ -55,6 +56,7 @@ export function PaymentConfirmDialog({
   onConfirm,
   topupAmount,
   paymentAmount,
+  actualPaymentAmount,
   paymentMethod,
   calculating,
   processing,
@@ -111,6 +113,22 @@ export function PaymentConfirmDialog({
               </div>
             )}
           </div>
+
+          {actualPaymentAmount !== undefined && (
+            <div className='flex items-start justify-between gap-4'>
+              <span className='text-muted-foreground text-sm'>
+                {t('Actual Amount')}
+              </span>
+              <div className='text-right'>
+                <div className='text-lg font-semibold'>
+                  {formatCurrency(actualPaymentAmount)}
+                </div>
+                <div className='text-muted-foreground text-xs'>
+                  {t('Final amount is subject to the checkout page')}
+                </div>
+              </div>
+            </div>
+          )}
 
           {hasDiscount && !calculating && (
             <div className='bg-muted/50 rounded-lg p-3'>

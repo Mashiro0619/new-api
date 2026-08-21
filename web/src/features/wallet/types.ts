@@ -42,6 +42,7 @@ export type StripePaymentResponse = ApiResponse<{ pay_link: string }>
 export type PerPayPaymentResponse = ApiResponse<{
   checkout_url: string
   trade_no: string
+  payable_amount_cents: number
 }>
 export type AffiliateCodeResponse = ApiResponse<string>
 export type AffiliateTransferResponse = ApiResponse

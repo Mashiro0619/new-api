@@ -2033,6 +2033,7 @@
     "Filter...": "Filtrer...",
     "Filters": "Filtres",
     "Filters active": "Filtres actifs",
+    "Final amount is subject to the checkout page": "Le montant final est celui affiché sur la page de paiement",
     "Final Consumed": "Consommation finale",
     "Final cost = base × multiplier when conditions match": "Coût final = base × multiplicateur lorsque les conditions correspondent",
     "Final price multiplier (0.95 = 5% discount": "Multiplicateur de prix final (0.95 = 5% de réduction",

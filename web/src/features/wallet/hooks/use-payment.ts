@@ -52,6 +52,13 @@ export interface PaymentAmountCalculators {
   waffoPancake: AmountCalculator
 }
 
+type PreparedPerPayPayment = {
+  topupAmount: number
+  checkoutUrl: string
+  tradeNo: string
+  payableAmount: number
+}
+
 const defaultPaymentAmountCalculators: PaymentAmountCalculators = {
   regular: calculateAmount,
   stripe: calculateStripeAmount,
@@ -92,11 +99,61 @@ export function usePayment() {
   const [amount, setAmount] = useState<number>(0)
   const [calculating, setCalculating] = useState(false)
   const [processing, setProcessing] = useState(false)
+  const [preparedPerPayPayment, setPreparedPerPayPayment] =
+    useState<PreparedPerPayPayment | null>(null)
   const [pendingPerPayTradeNo, setPendingPerPayTradeNo] = useState<
     string | null
   >(null)
   const clearPendingPerPayTradeNo = useCallback(() => {
     setPendingPerPayTradeNo(null)
+  }, [])
+
+  const clearPreparedPerPayPayment = useCallback(() => {
+    setPreparedPerPayPayment(null)
+  }, [])
+
+  const preparePerPayPayment = useCallback(async (topupAmount: number) => {
+    try {
+      setProcessing(true)
+      const response = await requestPerPayPayment({
+        amount: Math.floor(topupAmount),
+      })
+      if (!isApiSuccess(response)) {
+        toast.error(
+          getApiErrorMessage(response) || i18next.t('Payment request failed')
+        )
+        return 0
+      }
+
+      const checkoutUrl = response.data?.checkout_url
+      const tradeNo = response.data?.trade_no?.trim()
+      const payableAmountCents = response.data?.payable_amount_cents
+      if (
+        !checkoutUrl ||
+        !isSafePerPayCheckoutUrl(checkoutUrl) ||
+        !tradeNo ||
+        typeof payableAmountCents !== 'number' ||
+        !Number.isInteger(payableAmountCents) ||
+        payableAmountCents <= 0
+      ) {
+        toast.error(i18next.t('Payment request failed'))
+        return 0
+      }
+
+      const preparedPayment = {
+        topupAmount: Math.floor(topupAmount),
+        checkoutUrl,
+        tradeNo,
+        payableAmount: payableAmountCents / 100,
+      }
+      setPreparedPerPayPayment(preparedPayment)
+      return preparedPayment.payableAmount
+    } catch {
+      toast.error(i18next.t('Payment request failed'))
+      return 0
+    } finally {
+      setProcessing(false)
+    }
   }, [])
 
   // Calculate payment amount
@@ -134,27 +191,35 @@ export function usePayment() {
 
         const isPerPay = isPerPayPayment(paymentType)
         if (isPerPay) {
+          const preparedPayment =
+            preparedPerPayPayment?.topupAmount === Math.floor(topupAmount)
+              ? preparedPerPayPayment
+              : null
           // Open synchronously while the confirmation click is still trusted by
           // the browser. The checkout URL arrives after the API request.
           redirectWindow = window.open('', '_blank')
-          const response = await requestPerPayPayment({
-            amount: Math.floor(topupAmount),
-          })
-          if (!isApiSuccess(response)) {
-            redirectWindow?.close()
-            toast.error(
-              getApiErrorMessage(response) ||
-                i18next.t('Payment request failed')
-            )
-            return false
+          let checkoutUrl = preparedPayment?.checkoutUrl
+          let tradeNo = preparedPayment?.tradeNo
+          if (!checkoutUrl || !tradeNo) {
+            const response = await requestPerPayPayment({
+              amount: Math.floor(topupAmount),
+            })
+            if (!isApiSuccess(response)) {
+              redirectWindow?.close()
+              toast.error(
+                getApiErrorMessage(response) ||
+                  i18next.t('Payment request failed')
+              )
+              return false
+            }
+            checkoutUrl = response.data?.checkout_url
+            tradeNo = response.data?.trade_no?.trim()
           }
-          const checkoutUrl = response.data?.checkout_url
           if (!checkoutUrl || !isSafePerPayCheckoutUrl(checkoutUrl)) {
             redirectWindow?.close()
             toast.error(i18next.t('Invalid payment redirect URL'))
             return false
           }
-          const tradeNo = response.data?.trade_no?.trim()
           if (tradeNo) {
             setPendingPerPayTradeNo(tradeNo)
           }
@@ -231,7 +296,7 @@ export function usePayment() {
         setProcessing(false)
       }
     },
-    []
+    [preparedPerPayPayment]
   )
 
   return {
@@ -239,10 +304,13 @@ export function usePayment() {
     calculating,
     processing,
     calculatePaymentAmount,
+    preparePerPayPayment,
+    clearPreparedPerPayPayment,
     processPayment,
     setAmount,
     pendingPerPayTradeNo,
     clearPendingPerPayTradeNo,
+    actualPaymentAmount: preparedPerPayPayment?.payableAmount,
   }
 }
 

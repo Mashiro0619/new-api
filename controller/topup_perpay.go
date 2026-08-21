@@ -121,6 +121,7 @@ func RequestPerPay(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{
 		"checkout_url": order.CheckoutURL,
 		"trade_no":     tradeNo,
+		"payable_amount_cents": order.PayableAmountCents,
 	})
 }
 

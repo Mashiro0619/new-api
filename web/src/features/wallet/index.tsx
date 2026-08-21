@@ -103,9 +103,12 @@ export function Wallet(props: WalletProps) {
     calculating,
     processing,
     calculatePaymentAmount,
+    preparePerPayPayment,
+    clearPreparedPerPayPayment,
     processPayment,
     pendingPerPayTradeNo,
     clearPendingPerPayTradeNo,
+    actualPaymentAmount,
   } = usePayment()
   const {
     affiliateLink,
@@ -216,6 +219,7 @@ export function Wallet(props: WalletProps) {
 
   // Handle preset selection
   const handleSelectPreset = (preset: PresetAmount) => {
+    clearPreparedPerPayPayment()
     setTopupAmount(preset.value)
     setSelectedPreset(preset.value)
     calculatePaymentAmount(preset.value, getCurrentPaymentType())
@@ -223,6 +227,7 @@ export function Wallet(props: WalletProps) {
 
   // Handle topup amount change
   const handleTopupAmountChange = (amount: number) => {
+    clearPreparedPerPayPayment()
     setTopupAmount(amount)
     setSelectedPreset(null)
     calculatePaymentAmount(amount, getCurrentPaymentType())
@@ -230,6 +235,7 @@ export function Wallet(props: WalletProps) {
 
   // Handle payment method selection
   const handlePaymentMethodSelect = async (method: PaymentMethod) => {
+    clearPreparedPerPayPayment()
     setSelectedPaymentMethod(method)
     setSelectedWaffoMethodIndex(null)
     setPaymentLoading(method.type)
@@ -247,6 +253,10 @@ export function Wallet(props: WalletProps) {
         method.type
       )
       if (calculatedAmount <= 0) return
+      if (method.type === PAYMENT_TYPES.PERPAY) {
+        const preparedAmount = await preparePerPayPayment(topupAmount)
+        if (preparedAmount <= 0) return
+      }
       setConfirmDialogOpen(true)
     } finally {
       setPaymentLoading(null)
@@ -427,6 +437,11 @@ export function Wallet(props: WalletProps) {
         onConfirm={handlePaymentConfirm}
         topupAmount={topupAmount}
         paymentAmount={paymentAmount}
+        actualPaymentAmount={
+          selectedPaymentMethod?.type === PAYMENT_TYPES.PERPAY
+            ? actualPaymentAmount
+            : undefined
+        }
         paymentMethod={selectedPaymentMethod}
         calculating={calculating}
         processing={processing || waffoProcessing || pancakeProcessing}
