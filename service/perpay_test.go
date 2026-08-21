@@ -48,6 +48,7 @@ func TestPerPayClientCreateOrderSignsExactBody(t *testing.T) {
 		require.Equal(t, int64(1234), request.AmountCents)
 		require.Equal(t, "new-api recharge", request.ProductName)
 		require.Equal(t, "user: alice", request.Note)
+		require.Equal(t, server.URL+"/wallet", request.ReturnURL)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		_, _ = fmt.Fprintf(w, `{"data":{"order_id":"018f4d21-5a1d-4c76-8a1c-4e45b5991bb5","merchant_order_no":%q,"requested_amount_cents":1234,"payable_amount_cents":1235,"currency":"CNY","checkout":{"status":"OPEN","checkout_url":%q}}}`, request.MerchantOrderNo, server.URL+"/checkout/test")
@@ -63,6 +64,7 @@ func TestPerPayClientCreateOrderSignsExactBody(t *testing.T) {
 		ProductName:      "new-api recharge",
 		Note:             "user: alice",
 		NotifyURL:        server.URL + "/api/user/perpay/notify",
+		ReturnURL:        server.URL + "/wallet",
 	})
 	require.NoError(t, err)
 	require.Equal(t, "trade-1", order.MerchantOrderNo)

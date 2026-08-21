@@ -68,6 +68,12 @@ func RequestPerPay(c *gin.Context) {
 		common.ApiErrorMsg(c, "系统公开地址必须配置为 HTTPS 站点地址")
 		return
 	}
+	returnURL, err := perPayReturnURL(system_setting.ServerAddress)
+	if err != nil {
+		logger.LogError(c.Request.Context(), "PerPay 返回地址无效: "+err.Error())
+		common.ApiErrorMsg(c, "系统公开地址必须配置为 HTTPS 站点地址")
+		return
+	}
 
 	tradeNo := fmt.Sprintf("PPUSR%dNO%s%d", userID, common.GetRandomString(8), time.Now().Unix())
 	creditedAmount := req.Amount
@@ -109,6 +115,7 @@ func RequestPerPay(c *gin.Context) {
 		ProductName:      "中转站充值 " + payMoney.StringFixed(2),
 		Note:             "用户名：" + username,
 		NotifyURL:        notifyURL,
+		ReturnURL:        returnURL,
 	})
 	if err != nil {
 		// The remote result can be unknown after a network failure. Keep the
@@ -235,6 +242,16 @@ func perPayNotifyURL(serverAddress string) (string, error) {
 		return "", errors.New("ServerAddress 必须是 HTTPS 站点地址")
 	}
 	return trimmed + "/api/user/perpay/notify", nil
+}
+
+func perPayReturnURL(serverAddress string) (string, error) {
+	trimmed := strings.TrimRight(strings.TrimSpace(serverAddress), "/")
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil ||
+		(parsed.Path != "" && parsed.Path != "/") || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", errors.New("ServerAddress 必须是 HTTPS 站点地址")
+	}
+	return trimmed + "/wallet", nil
 }
 
 func perPayWebhookAuthentication(headers http.Header) (service.PerPayWebhookAuthentication, error) {

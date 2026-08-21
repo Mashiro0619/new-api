@@ -53,6 +53,7 @@ type PerPayCreateOrderInput struct {
 	ProductName     string `json:"product_name"`
 	Note            string `json:"note,omitempty"`
 	NotifyURL       string `json:"notify_url,omitempty"`
+	ReturnURL       string `json:"return_url,omitempty"`
 }
 
 type PerPayCreatedOrder struct {
@@ -129,6 +130,11 @@ func (client *PerPayClient) CreateOrder(ctx context.Context, input PerPayCreateO
 	}
 	if err := validatePerPayHTTPSURL(input.NotifyURL); err != nil {
 		return nil, fmt.Errorf("PerPay 通知地址无效: %w", err)
+	}
+	if input.ReturnURL != "" {
+		if err := validatePerPayHTTPSURL(input.ReturnURL); err != nil {
+			return nil, fmt.Errorf("PerPay 返回地址无效: %w", err)
+		}
 	}
 	body, err := common.Marshal(input)
 	if err != nil {
