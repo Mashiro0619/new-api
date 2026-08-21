@@ -73,4 +73,9 @@ const (
 	// fallback in authHelper (finishAdminAudit) skips its record to avoid
 	// duplicate entries.
 	ContextKeyAuditLogged ContextKey = "audit_logged"
+
+	// ContextKeyErrorLogRecorded marks that the current user request already
+	// has an error usage log. Retries may surface the same request error more
+	// than once, but it should only be listed once in usage logs.
+	ContextKeyErrorLogRecorded ContextKey = "error_log_recorded"
 )

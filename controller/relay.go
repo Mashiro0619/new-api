@@ -83,6 +83,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		var err error
 		ws, err = upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
+			recordUserRequestErrorLog(c, types.NewError(err, types.ErrorCodeGetChannelFailed), nil)
 			helper.WssError(c, ws, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry()).ToOpenAIError())
 			return
 		}
@@ -91,6 +92,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	defer func() {
 		if newAPIError != nil {
+			recordUserRequestErrorLog(c, newAPIError, nil)
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
@@ -360,6 +362,86 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	return operation_setting.ShouldRetryByStatusCode(code)
 }
 
+func taskErrorToAPIError(taskErr *taskdto.TaskError) *types.NewAPIError {
+	if taskErr == nil {
+		return nil
+	}
+	err := taskErr.Error
+	if err == nil {
+		err = errors.New(taskErr.Message)
+	}
+	return types.NewOpenAIError(err, types.ErrorCode(taskErr.Code), taskErr.StatusCode)
+}
+
+// recordUserRequestErrorLog records one error usage log for a failed user
+// request. Channel retries may call processChannelError repeatedly, so the
+// context marker prevents duplicate entries for the same request.
+func recordUserRequestErrorLog(c *gin.Context, err *types.NewAPIError, channelError *types.ChannelError) {
+	if c == nil || err == nil || !constant.ErrorLogEnabled ||
+		common.GetContextKeyBool(c, constant.ContextKeyErrorLogRecorded) {
+		return
+	}
+
+	userId := c.GetInt("id")
+	if userId <= 0 {
+		return
+	}
+
+	channelId := c.GetInt("channel_id")
+	channelName := c.GetString("channel_name")
+	channelType := c.GetInt("channel_type")
+	isMultiKey := common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey)
+	if channelError != nil {
+		channelId = channelError.ChannelId
+		channelName = channelError.ChannelName
+		channelType = channelError.ChannelType
+		isMultiKey = channelError.IsMultiKey
+	}
+
+	modelName := c.GetString("original_model")
+	if modelName == "" {
+		modelName = c.GetString("model")
+	}
+	other := make(map[string]interface{})
+	if c.Request != nil && c.Request.URL != nil {
+		other["request_path"] = c.Request.URL.Path
+	}
+	other["error_type"] = err.GetErrorType()
+	other["error_code"] = err.GetErrorCode()
+	other["status_code"] = err.StatusCode
+	other["channel_id"] = channelId
+	other["channel_name"] = channelName
+	other["channel_type"] = channelType
+	adminInfo := make(map[string]interface{})
+	adminInfo["use_channel"] = c.GetStringSlice("use_channel")
+	if isMultiKey {
+		adminInfo["is_multi_key"] = true
+		adminInfo["multi_key_index"] = common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
+	}
+	service.AppendChannelAffinityAdminInfo(c, adminInfo)
+	other["admin_info"] = adminInfo
+
+	startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
+	if startTime.IsZero() {
+		startTime = time.Now()
+	}
+	useTimeSeconds := int(time.Since(startTime).Seconds())
+	model.RecordErrorLog(
+		c,
+		userId,
+		channelId,
+		modelName,
+		c.GetString("token_name"),
+		err.MaskSensitiveErrorWithStatusCode(),
+		c.GetInt("token_id"),
+		useTimeSeconds,
+		common.GetContextKeyBool(c, constant.ContextKeyIsStream),
+		c.GetString("group"),
+		other,
+	)
+	common.SetContextKey(c, constant.ContextKeyErrorLogRecorded, true)
+}
+
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.Error())))
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
@@ -370,47 +452,14 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		})
 	}
 
-	if constant.ErrorLogEnabled && types.IsRecordErrorLog(err) {
-		// 保存错误日志到mysql中
-		userId := c.GetInt("id")
-		tokenName := c.GetString("token_name")
-		modelName := c.GetString("original_model")
-		tokenId := c.GetInt("token_id")
-		userGroup := c.GetString("group")
-		channelId := c.GetInt("channel_id")
-		other := make(map[string]interface{})
-		if c.Request != nil && c.Request.URL != nil {
-			other["request_path"] = c.Request.URL.Path
-		}
-		other["error_type"] = err.GetErrorType()
-		other["error_code"] = err.GetErrorCode()
-		other["status_code"] = err.StatusCode
-		other["channel_id"] = channelId
-		other["channel_name"] = c.GetString("channel_name")
-		other["channel_type"] = c.GetInt("channel_type")
-		adminInfo := make(map[string]interface{})
-		adminInfo["use_channel"] = c.GetStringSlice("use_channel")
-		isMultiKey := common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey)
-		if isMultiKey {
-			adminInfo["is_multi_key"] = true
-			adminInfo["multi_key_index"] = common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
-		}
-		service.AppendChannelAffinityAdminInfo(c, adminInfo)
-		other["admin_info"] = adminInfo
-		startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
-		if startTime.IsZero() {
-			startTime = time.Now()
-		}
-		useTimeSeconds := int(time.Since(startTime).Seconds())
-		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
-	}
-
+	recordUserRequestErrorLog(c, err, &channelError)
 }
 
 func RelayMidjourney(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatMjProxy, nil, nil)
 
 	if err != nil {
+		recordUserRequestErrorLog(c, types.NewError(err, types.ErrorCodeGenRelayInfoFailed), nil)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"description": fmt.Sprintf("failed to generate relay info: %s", err.Error()),
 			"type":        "upstream_error",
@@ -440,6 +489,7 @@ func RelayMidjourney(c *gin.Context) {
 			mjErr.Result = "当前分组负载已饱和，请稍后再试，或升级账户以提升服务质量。"
 			statusCode = http.StatusTooManyRequests
 		}
+		recordUserRequestErrorLog(c, types.NewOpenAIError(errors.New(mjErr.Description+" "+mjErr.Result), types.ErrorCodeBadResponseStatusCode, statusCode), nil)
 		c.JSON(statusCode, gin.H{
 			"description": fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result),
 			"type":        "upstream_error",
@@ -451,6 +501,7 @@ func RelayMidjourney(c *gin.Context) {
 }
 
 func RelayNotImplemented(c *gin.Context) {
+	recordUserRequestErrorLog(c, types.NewError(errors.New("API not implemented"), types.ErrorCodeInvalidRequest), nil)
 	err := types.OpenAIError{
 		Message: "API not implemented",
 		Type:    "new_api_error",
@@ -463,6 +514,7 @@ func RelayNotImplemented(c *gin.Context) {
 }
 
 func RelayNotFound(c *gin.Context) {
+	recordUserRequestErrorLog(c, types.NewError(fmt.Errorf("Invalid URL (%s %s)", c.Request.Method, c.Request.URL.Path), types.ErrorCodeInvalidRequest), nil)
 	err := types.OpenAIError{
 		Message: fmt.Sprintf("Invalid URL (%s %s)", c.Request.Method, c.Request.URL.Path),
 		Type:    "invalid_request_error",
@@ -477,6 +529,7 @@ func RelayNotFound(c *gin.Context) {
 func RelayTaskFetch(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
+		recordUserRequestErrorLog(c, types.NewError(err, types.ErrorCodeGenRelayInfoFailed), nil)
 		c.JSON(http.StatusInternalServerError, &taskdto.TaskError{
 			Code:       "gen_relay_info_failed",
 			Message:    err.Error(),
@@ -485,6 +538,7 @@ func RelayTaskFetch(c *gin.Context) {
 		return
 	}
 	if taskErr := relay.RelayTaskFetch(c, relayInfo.RelayMode); taskErr != nil {
+		recordUserRequestErrorLog(c, taskErrorToAPIError(taskErr), nil)
 		respondTaskError(c, taskErr)
 	}
 }
@@ -492,6 +546,7 @@ func RelayTaskFetch(c *gin.Context) {
 func RelayTask(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
+		recordUserRequestErrorLog(c, types.NewError(err, types.ErrorCodeGenRelayInfoFailed), nil)
 		c.JSON(http.StatusInternalServerError, &taskdto.TaskError{
 			Code:       "gen_relay_info_failed",
 			Message:    err.Error(),
@@ -501,6 +556,7 @@ func RelayTask(c *gin.Context) {
 	}
 
 	if taskErr := relay.ResolveOriginTask(c, relayInfo); taskErr != nil {
+		recordUserRequestErrorLog(c, taskErrorToAPIError(taskErr), nil)
 		respondTaskError(c, taskErr)
 		return
 	}
@@ -607,6 +663,7 @@ func RelayTask(c *gin.Context) {
 	}
 
 	if taskErr != nil {
+		recordUserRequestErrorLog(c, taskErrorToAPIError(taskErr), nil)
 		respondTaskError(c, taskErr)
 	}
 }
