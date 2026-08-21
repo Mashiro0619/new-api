@@ -39,6 +39,7 @@ import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authentic
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedDashboardSectionRouteImport } from './routes/_authenticated/dashboard/$section'
 import { Route as AuthenticatedDashboardPricingRouteImport } from './routes/_authenticated/dashboard/pricing'
+import { Route as AuthenticatedDashboardSiteModelCallsRouteImport } from './routes/_authenticated/dashboard/site-model-calls'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
 import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenticated/models/index'
@@ -221,6 +222,12 @@ const AuthenticatedDashboardPricingRoute =
   AuthenticatedDashboardPricingRouteImport.update({
     id: '/dashboard/pricing',
     path: '/dashboard/pricing',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedDashboardSiteModelCallsRoute =
+  AuthenticatedDashboardSiteModelCallsRouteImport.update({
+    id: '/dashboard/site-model-calls',
+    path: '/dashboard/site-model-calls',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedErrorsErrorRoute =
@@ -428,6 +435,7 @@ export interface FileRoutesByFullPath {
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/dashboard/pricing': typeof AuthenticatedDashboardPricingRoute
+  '/dashboard/site-model-calls': typeof AuthenticatedDashboardSiteModelCallsRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
@@ -487,6 +495,7 @@ export interface FileRoutesByTo {
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/dashboard/pricing': typeof AuthenticatedDashboardPricingRoute
+  '/dashboard/site-model-calls': typeof AuthenticatedDashboardSiteModelCallsRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
@@ -550,6 +559,7 @@ export interface FileRoutesById {
   '/_authenticated/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/_authenticated/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/_authenticated/dashboard/pricing': typeof AuthenticatedDashboardPricingRoute
+  '/_authenticated/dashboard/site-model-calls': typeof AuthenticatedDashboardSiteModelCallsRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/models/$section': typeof AuthenticatedModelsSectionRoute
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
@@ -612,6 +622,7 @@ export interface FileRouteTypes {
     | '/chat/$chatId'
     | '/dashboard/$section'
     | '/dashboard/pricing'
+    | '/dashboard/site-model-calls'
     | '/errors/$error'
     | '/models/$section'
     | '/usage-logs/$section'
@@ -671,6 +682,7 @@ export interface FileRouteTypes {
     | '/chat/$chatId'
     | '/dashboard/$section'
     | '/dashboard/pricing'
+    | '/dashboard/site-model-calls'
     | '/errors/$error'
     | '/models/$section'
     | '/usage-logs/$section'
@@ -733,6 +745,7 @@ export interface FileRouteTypes {
     | '/_authenticated/chat/$chatId'
     | '/_authenticated/dashboard/$section'
     | '/_authenticated/dashboard/pricing'
+    | '/_authenticated/dashboard/site-model-calls'
     | '/_authenticated/errors/$error'
     | '/_authenticated/models/$section'
     | '/_authenticated/usage-logs/$section'
@@ -996,6 +1009,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard/pricing'
       fullPath: '/dashboard/pricing'
       preLoaderRoute: typeof AuthenticatedDashboardPricingRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/dashboard/site-model-calls': {
+      id: '/_authenticated/dashboard/site-model-calls'
+      path: '/dashboard/site-model-calls'
+      fullPath: '/dashboard/site-model-calls'
+      preLoaderRoute: typeof AuthenticatedDashboardSiteModelCallsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/errors/$error': {
@@ -1300,6 +1320,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedChatChatIdRoute: typeof AuthenticatedChatChatIdRoute
   AuthenticatedDashboardSectionRoute: typeof AuthenticatedDashboardSectionRoute
   AuthenticatedDashboardPricingRoute: typeof AuthenticatedDashboardPricingRoute
+  AuthenticatedDashboardSiteModelCallsRoute: typeof AuthenticatedDashboardSiteModelCallsRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedModelsSectionRoute: typeof AuthenticatedModelsSectionRoute
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
@@ -1325,6 +1346,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedChatChatIdRoute: AuthenticatedChatChatIdRoute,
   AuthenticatedDashboardSectionRoute: AuthenticatedDashboardSectionRoute,
   AuthenticatedDashboardPricingRoute: AuthenticatedDashboardPricingRoute,
+  AuthenticatedDashboardSiteModelCallsRoute:
+    AuthenticatedDashboardSiteModelCallsRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedModelsSectionRoute: AuthenticatedModelsSectionRoute,
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,

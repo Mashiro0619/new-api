@@ -26,6 +26,7 @@ import {
 import { HeaderNavigationSection } from '../maintenance/header-navigation-section'
 import { NoticeSection } from '../maintenance/notice-section'
 import { SidebarModulesSection } from '../maintenance/sidebar-modules-section'
+import { SiteModelCallsSection } from './site-model-calls-section'
 import type { SiteSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 
@@ -86,6 +87,13 @@ const SITE_SECTIONS = [
         />
       )
     },
+  },
+  {
+    id: 'site-model-calls',
+    titleKey: 'All-site model calls',
+    build: (settings: SiteSettings) => (
+      <SiteModelCallsSection initialValue={settings.AllSiteModelCalls} />
+    ),
   },
 ] as const
 

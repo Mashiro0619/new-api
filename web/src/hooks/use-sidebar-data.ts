@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   Activity,
+  BarChart3,
   Box,
   CreditCard,
   FileText,
@@ -42,6 +43,7 @@ import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import { useStatus } from '@/hooks/use-status'
+import { parseSiteModelCallsConfig } from '@/features/site-model-calls/config'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -64,6 +66,9 @@ export function useSidebarData(): SidebarData {
     modules?.pricing && typeof modules.pricing === 'object'
       ? modules.pricing.enabled
       : false
+  const siteModelCallsEnabled =
+    role >= ROLE.ADMIN ||
+    parseSiteModelCallsConfig(status?.AllSiteModelCalls).enabled
 
   const generalItems: SidebarData['navGroups'][number]['items'] = [
     {
@@ -101,6 +106,14 @@ export function useSidebarData(): SidebarData {
       title: t('Model Square'),
       url: '/dashboard/pricing',
       icon: Store,
+    })
+  }
+
+  if (siteModelCallsEnabled) {
+    generalItems.push({
+      title: t('All-site model calls'),
+      url: '/dashboard/site-model-calls',
+      icon: BarChart3,
     })
   }
 

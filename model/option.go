@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/setting/site_model_calls"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"gorm.io/gorm"
 )
@@ -73,6 +74,7 @@ func InitOptionMap() {
 	common.OptionMap["SystemName"] = common.SystemName
 	common.OptionMap["Logo"] = common.Logo
 	common.OptionMap["ServerAddress"] = ""
+	common.OptionMap[site_model_calls.OptionKey] = site_model_calls.DefaultSerialized
 	common.OptionMap["WorkerUrl"] = system_setting.WorkerUrl
 	common.OptionMap["WorkerValidKey"] = system_setting.WorkerValidKey
 	common.OptionMap["WorkerAllowHttpImageRequestEnabled"] = strconv.FormatBool(system_setting.WorkerAllowHttpImageRequestEnabled)
@@ -211,6 +213,8 @@ func SyncOptions(frequency int) {
 
 func validateOptionValue(key string, value string) error {
 	switch key {
+	case site_model_calls.OptionKey:
+		return site_model_calls.Validate(value)
 	case "PerPayAddress":
 		return operation_setting.ValidatePerPayAddress(value)
 	case "PerPayClientId":

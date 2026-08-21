@@ -96,6 +96,30 @@ func GetPerfMetricsSummaryAll(startTs int64, endTs int64, groups []string) ([]Pe
 	return summaries, err
 }
 
+// GetPerfMetricsSummaryAllTime returns all retained model aggregates without
+// applying a time window or group filter.
+func GetPerfMetricsSummaryAllTime() ([]PerfMetricSummary, error) {
+	var summaries []PerfMetricSummary
+	err := DB.Model(&PerfMetric{}).
+		Select("model_name, SUM(request_count) as request_count, SUM(success_count) as success_count, SUM(total_latency_ms) as total_latency_ms, SUM(output_tokens) as output_tokens, SUM(generation_ms) as generation_ms").
+		Where("model_name <> ''").
+		Group("model_name").
+		Having("SUM(request_count) > 0").
+		Find(&summaries).Error
+	return summaries, err
+}
+
+// GetPerfMetricModelNames returns model names represented by retained metrics.
+func GetPerfMetricModelNames() ([]string, error) {
+	var names []string
+	err := DB.Model(&PerfMetric{}).
+		Where("model_name <> ''").
+		Distinct("model_name").
+		Order("model_name ASC").
+		Pluck("model_name", &names).Error
+	return names, err
+}
+
 func GetPerfMetricsSummaryBucketsAll(startTs int64, endTs int64, groups []string) ([]PerfMetricSummaryBucket, error) {
 	var summaries []PerfMetricSummaryBucket
 	query := DB.Model(&PerfMetric{}).

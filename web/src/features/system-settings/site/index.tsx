@@ -36,6 +36,7 @@ const defaultSiteSettings: SiteSettings = {
   'legal.privacy_policy': '',
   HeaderNavModules: '',
   SidebarModulesAdmin: '',
+  AllSiteModelCalls: '{"enabled":false,"models":[]}',
 }
 
 export function SiteSettings() {

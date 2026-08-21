@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -196,6 +197,106 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 	})
 
 	return SummaryAllResult{Models: models}, nil
+}
+
+// QuerySiteSummary returns cumulative model totals for all retained metrics,
+// including active in-memory buckets that have not been flushed yet.
+func QuerySiteSummary(selected []string) ([]SiteModelSummary, error) {
+	rows, err := model.GetPerfMetricsSummaryAllTime()
+	if err != nil {
+		return nil, err
+	}
+
+	totals := make(map[string]counters, len(rows))
+	for _, row := range rows {
+		totals[row.ModelName] = counters{
+			requestCount:   row.RequestCount,
+			successCount:   row.SuccessCount,
+			totalLatencyMs: row.TotalLatencyMs,
+			outputTokens:   row.OutputTokens,
+			generationMs:   row.GenerationMs,
+		}
+	}
+	hotBuckets.Range(func(key, value any) bool {
+		k := key.(bucketKey)
+		mergeModelTotals(totals, k.model, value.(*atomicBucket).snapshot())
+		return true
+	})
+
+	selectedSet := make(map[string]struct{}, len(selected))
+	for _, name := range selected {
+		name = strings.TrimSpace(name)
+		if name != "" {
+			selectedSet[name] = struct{}{}
+		}
+	}
+	if len(selectedSet) > 0 {
+		for name := range selectedSet {
+			if _, ok := totals[name]; !ok {
+				totals[name] = counters{}
+			}
+		}
+		for name := range totals {
+			if _, ok := selectedSet[name]; !ok {
+				delete(totals, name)
+			}
+		}
+	}
+
+	result := make([]SiteModelSummary, 0, len(totals))
+	for name, total := range totals {
+		if total.requestCount < 0 {
+			total.requestCount = 0
+		}
+		if total.successCount < 0 {
+			total.successCount = 0
+		}
+		if total.successCount > total.requestCount {
+			total.successCount = total.requestCount
+		}
+		rate := 0.0
+		if total.requestCount > 0 {
+			rate = float64(total.successCount) / float64(total.requestCount) * 100
+		}
+		result = append(result, SiteModelSummary{
+			ModelName:    name,
+			RequestCount: total.requestCount,
+			SuccessCount: total.successCount,
+			FailureCount: total.requestCount - total.successCount,
+			SuccessRate:  math.Round(rate*100) / 100,
+		})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].RequestCount != result[j].RequestCount {
+			return result[i].RequestCount > result[j].RequestCount
+		}
+		return result[i].ModelName < result[j].ModelName
+	})
+	return result, nil
+}
+
+func QuerySiteModelNames() ([]string, error) {
+	names, err := model.GetPerfMetricModelNames()
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		seen[name] = struct{}{}
+	}
+	hotBuckets.Range(func(key, value any) bool {
+		k := key.(bucketKey)
+		if value.(*atomicBucket).snapshot().requestCount > 0 && k.model != "" {
+			seen[k.model] = struct{}{}
+		}
+		return true
+	})
+	result := make([]string, 0, len(seen))
+	for name := range seen {
+		result = append(result, name)
+	}
+	sort.Strings(result)
+	return result, nil
 }
 
 func mergeModelTotals(totals map[string]counters, modelName string, value counters) {
