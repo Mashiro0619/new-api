@@ -42,6 +42,37 @@ type TokenMetrics struct {
 	CacheReadTokens     int64 `json:"cache_read_tokens"`
 }
 
+type ModelTokenMetricsSummary struct {
+	ModelName         string `json:"model_name"`
+	InputTokens       int64  `json:"input_tokens"`
+	OutputTokens      int64  `json:"output_tokens"`
+	CacheCreationTokens int64 `json:"cache_creation_tokens"`
+	CacheReadTokens   int64  `json:"cache_read_tokens"`
+	TokenMetricsCount int64  `json:"token_metrics_count"`
+}
+
+func GetModelTokenMetricsSummaries() ([]ModelTokenMetricsSummary, error) {
+	var summaries []ModelTokenMetricsSummary
+	err := DB.Table("quota_data").
+		Select("model_name, SUM(input_tokens) as input_tokens, SUM(output_tokens) as output_tokens, SUM(cache_creation_tokens) as cache_creation_tokens, SUM(cache_read_tokens) as cache_read_tokens, SUM(token_metrics_count) as token_metrics_count").
+		Where("model_name <> '' AND token_metrics_count > 0").
+		Group("model_name").
+		Having("SUM(token_metrics_count) > 0").
+		Order("model_name ASC").
+		Find(&summaries).Error
+	return summaries, err
+}
+
+func GetModelTokenMetricNames() ([]string, error) {
+	var names []string
+	err := DB.Table("quota_data").
+		Where("model_name <> '' AND token_metrics_count > 0").
+		Distinct("model_name").
+		Order("model_name ASC").
+		Pluck("model_name", &names).Error
+	return names, err
+}
+
 func NormalizeTokenMetrics(inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens int64, inputAlreadySeparated bool) TokenMetrics {
 	inputTokens = max(inputTokens, 0)
 	outputTokens = max(outputTokens, 0)

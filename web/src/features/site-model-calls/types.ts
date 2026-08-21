@@ -22,9 +22,9 @@ export type SiteModelCallSummary = {
   success_count: number
   failure_count: number
   success_rate: number
-  total_tokens: number
-  cache_read_tokens: number
-  cache_hit_rate: number
+  total_tokens: number | null
+  cache_read_tokens: number | null
+  cache_hit_rate: number | null
 }
 
 export type SiteModelCallsResponse = {

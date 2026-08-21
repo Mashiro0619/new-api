@@ -31,6 +31,14 @@ import { parseSiteModelCallsConfig } from './config'
 
 const numberFormatter = new Intl.NumberFormat()
 
+function formatNullableNumber(value: number | null): string {
+  return value == null ? '--' : numberFormatter.format(value)
+}
+
+function formatNullablePercent(value: number | null): string {
+  return value == null ? '--' : `${value.toFixed(2)}%`
+}
+
 export function SiteModelCalls() {
   const { t } = useTranslation()
   const { status } = useStatus()
@@ -63,9 +71,9 @@ export function SiteModelCalls() {
             success_count: 0,
             failure_count: 0,
             success_rate: 0,
-            total_tokens: 0,
-            cache_read_tokens: 0,
-            cache_hit_rate: 0,
+            total_tokens: null,
+            cache_read_tokens: null,
+            cache_hit_rate: null,
           }
       )
       .sort((a, b) => {
@@ -151,14 +159,14 @@ export function SiteModelCalls() {
               header: t('Total Tokens'),
               className: 'text-right',
               cellClassName: 'text-right tabular-nums',
-              cell: (row) => numberFormatter.format(row.total_tokens),
+              cell: (row) => formatNullableNumber(row.total_tokens),
             },
             {
               id: 'cache-rate',
               header: t('Cache Hit Rate'),
               className: 'text-right',
               cellClassName: 'text-right tabular-nums',
-              cell: (row) => `${row.cache_hit_rate.toFixed(2)}%`,
+              cell: (row) => formatNullablePercent(row.cache_hit_rate),
             },
           ]}
         />

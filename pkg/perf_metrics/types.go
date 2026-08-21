@@ -15,9 +15,6 @@ type Sample struct {
 	HasTtft      bool
 	Success      bool
 	OutputTokens int64
-	InputTokens  int64
-	TotalTokens  int64
-	CacheReadTokens int64
 	GenerationMs int64
 }
 
@@ -69,9 +66,10 @@ type SiteModelSummary struct {
 	SuccessCount    int64   `json:"success_count"`
 	FailureCount    int64   `json:"failure_count"`
 	SuccessRate     float64 `json:"success_rate"`
-	TotalTokens     int64   `json:"total_tokens"`
-	CacheReadTokens int64   `json:"cache_read_tokens"`
-	CacheHitRate    float64 `json:"cache_hit_rate"`
+	TotalTokens     *int64  `json:"total_tokens"`
+	CacheReadTokens *int64  `json:"cache_read_tokens"`
+	CacheHitRate    *float64 `json:"cache_hit_rate"`
+	TokenMetricsCount int64 `json:"token_metrics_count"`
 }
 
 type bucketKey struct {
@@ -87,9 +85,6 @@ type counters struct {
 	ttftSumMs      int64
 	ttftCount      int64
 	outputTokens   int64
-	inputTokens    int64
-	totalTokens    int64
-	cacheReadTokens int64
 	generationMs   int64
 }
 
@@ -100,9 +95,6 @@ type atomicBucket struct {
 	ttftSumMs      atomic.Int64
 	ttftCount      atomic.Int64
 	outputTokens   atomic.Int64
-	inputTokens    atomic.Int64
-	totalTokens    atomic.Int64
-	cacheReadTokens atomic.Int64
 	generationMs   atomic.Int64
 }
 
@@ -122,15 +114,6 @@ func (b *atomicBucket) add(sample Sample) {
 		b.outputTokens.Add(sample.OutputTokens)
 		b.generationMs.Add(sample.GenerationMs)
 	}
-	if sample.InputTokens > 0 {
-		b.inputTokens.Add(sample.InputTokens)
-	}
-	if sample.TotalTokens > 0 {
-		b.totalTokens.Add(sample.TotalTokens)
-	}
-	if sample.CacheReadTokens > 0 {
-		b.cacheReadTokens.Add(sample.CacheReadTokens)
-	}
 }
 
 func (b *atomicBucket) snapshot() counters {
@@ -141,9 +124,6 @@ func (b *atomicBucket) snapshot() counters {
 		ttftSumMs:      b.ttftSumMs.Load(),
 		ttftCount:      b.ttftCount.Load(),
 		outputTokens:   b.outputTokens.Load(),
-		inputTokens:    b.inputTokens.Load(),
-		totalTokens:    b.totalTokens.Load(),
-		cacheReadTokens: b.cacheReadTokens.Load(),
 		generationMs:   b.generationMs.Load(),
 	}
 }
@@ -156,9 +136,6 @@ func (b *atomicBucket) drain() counters {
 		ttftSumMs:      b.ttftSumMs.Swap(0),
 		ttftCount:      b.ttftCount.Swap(0),
 		outputTokens:   b.outputTokens.Swap(0),
-		inputTokens:    b.inputTokens.Swap(0),
-		totalTokens:    b.totalTokens.Swap(0),
-		cacheReadTokens: b.cacheReadTokens.Swap(0),
 		generationMs:   b.generationMs.Swap(0),
 	}
 }
@@ -181,15 +158,6 @@ func (b *atomicBucket) addCounters(c counters) {
 	}
 	if c.outputTokens != 0 {
 		b.outputTokens.Add(c.outputTokens)
-	}
-	if c.inputTokens != 0 {
-		b.inputTokens.Add(c.inputTokens)
-	}
-	if c.totalTokens != 0 {
-		b.totalTokens.Add(c.totalTokens)
-	}
-	if c.cacheReadTokens != 0 {
-		b.cacheReadTokens.Add(c.cacheReadTokens)
 	}
 	if c.generationMs != 0 {
 		b.generationMs.Add(c.generationMs)
