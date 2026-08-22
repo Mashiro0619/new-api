@@ -130,9 +130,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken
+	needProhibitedCheck := len(setting.GetProhibitedWordsCopy()) > 0
 	// Avoid building huge CombineText (strings.Join) when token counting and sensitive check are both disabled.
 	var meta *types.TokenCountMeta
-	if needSensitiveCheck || needCountToken {
+	if needSensitiveCheck || needCountToken || needProhibitedCheck {
 		meta = request.GetTokenCountMeta()
 	} else {
 		meta = fastTokenCountMetaForPricing(request)
@@ -144,6 +145,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			logger.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", ")))
 			newAPIError = types.NewError(err, types.ErrorCodeSensitiveWordsDetected)
 			return
+		}
+	}
+
+	if needProhibitedCheck && meta != nil && c.GetInt("id") > 0 {
+		if hits := service.CheckProhibitedText(meta.CombineText); len(hits) > 0 {
+			if err := service.RecordProhibitedWordHits(c.GetInt("id"), hits); err != nil {
+				logger.LogError(c, fmt.Sprintf("failed to record prohibited word hits: %v", err))
+			}
 		}
 	}
 

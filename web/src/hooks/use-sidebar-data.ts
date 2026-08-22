@@ -30,6 +30,7 @@ import {
   Radio,
   ServerCog,
   Settings,
+  ShieldAlert,
   Store,
   Ticket,
   User,
@@ -39,11 +40,11 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarData } from '@/components/layout/types'
+import { parseSiteModelCallsConfig } from '@/features/site-model-calls/config'
+import { useStatus } from '@/hooks/use-status'
 import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
-import { useStatus } from '@/hooks/use-status'
-import { parseSiteModelCallsConfig } from '@/features/site-model-calls/config'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -164,6 +165,12 @@ export function useSidebarData(): SidebarData {
             title: t('Channels'),
             url: '/channels',
             icon: Radio,
+          },
+          {
+            title: t('Prohibited word detection'),
+            url: '/prohibited-word-detection',
+            icon: ShieldAlert,
+            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('Models'),

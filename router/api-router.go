@@ -38,6 +38,14 @@ func SetApiRouter(router *gin.Engine) {
 			siteModelCallsRoute.GET("/summary", controller.GetSiteModelCallsSummary)
 			siteModelCallsRoute.GET("/models", controller.GetSiteModelCallModels)
 		}
+		prohibitedWordRoute := apiRouter.Group("/prohibited-word-detection")
+		prohibitedWordRoute.Use(middleware.AdminAuth())
+		{
+			prohibitedWordRoute.GET("/config", controller.GetProhibitedWordConfig)
+			prohibitedWordRoute.PUT("/config", controller.UpdateProhibitedWordConfig)
+			prohibitedWordRoute.GET("/summary", controller.GetProhibitedWordSummary)
+			prohibitedWordRoute.DELETE("/stats", controller.ClearProhibitedWordStats)
+		}
 		perfMetricsRoute := apiRouter.Group("/perf-metrics")
 		perfMetricsRoute.Use(middleware.HeaderNavModulePublicOrUserAuth("pricing"))
 		{

@@ -63,3 +63,39 @@ func TestGetModelTokenMetricsSummariesAggregatesMeasuredRows(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{"gpt-a", "memory-only"}, names)
 }
+
+func TestIncrementProhibitedWordHitsDeduplicatesAndIncrements(t *testing.T) {
+	truncateTables(t)
+	user := User{Username: "prohibited-user", Password: "password", Role: 1, Status: 1}
+	require.NoError(t, DB.Create(&user).Error)
+
+	require.NoError(t, IncrementProhibitedWordHits(user.Id, []string{"Alpha", "alpha", "Beta"}))
+	require.NoError(t, IncrementProhibitedWordHits(user.Id, []string{"alpha"}))
+
+	var hits []ProhibitedWordHit
+	require.NoError(t, DB.Where("user_id = ?", user.Id).Order("keyword ASC").Find(&hits).Error)
+	require.Len(t, hits, 2)
+	require.Equal(t, "alpha", hits[0].Keyword)
+	require.EqualValues(t, 2, hits[0].HitCount)
+	require.Equal(t, "beta", hits[1].Keyword)
+	require.EqualValues(t, 1, hits[1].HitCount)
+}
+
+func TestGetProhibitedWordSummaryIncludesUsersWithoutHits(t *testing.T) {
+	truncateTables(t)
+	users := []User{
+		{Username: "hit-user", Password: "password", Role: 1, Status: 1},
+		{Username: "quiet-user", Password: "password", Role: 1, Status: 1},
+	}
+	require.NoError(t, DB.Create(&users).Error)
+	require.NoError(t, IncrementProhibitedWordHits(users[0].Id, []string{"alpha"}))
+
+	page, err := GetProhibitedWordSummary(1, 50, []string{"alpha", "beta"})
+	require.NoError(t, err)
+	require.EqualValues(t, 2, page.Total)
+	require.Len(t, page.Items, 2)
+	require.EqualValues(t, 1, page.Items[0].Counts["alpha"])
+	require.EqualValues(t, 0, page.Items[0].Counts["beta"])
+	require.EqualValues(t, 0, page.Items[1].Counts["alpha"])
+	require.EqualValues(t, 0, page.Items[1].Counts["beta"])
+}

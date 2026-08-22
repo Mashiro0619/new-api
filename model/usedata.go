@@ -163,41 +163,7 @@ func GetModelTokenMetricsSummaries() ([]ModelTokenMetricsSummary, error) {
 		return summaries, nil
 	}
 
-	// A continuously busy instance can keep changing the cache version. Return
-	// one bounded snapshot rather than starving the read indefinitely.
-	version, cachedRows := snapshotCacheQuotaData()
-	rows, err := queryModelTokenMetricsRows()
-	if err != nil {
-		return nil, err
-	}
-	_ = version
-	summariesByModel := make(map[string]ModelTokenMetricsSummary, len(rows))
-	for _, row := range rows {
-		summariesByModel[row.ModelName] = row
-	}
-	for _, row := range cachedRows {
-		if row.TokenMetricsCount <= 0 {
-			continue
-		}
-		modelName := strings.TrimSpace(row.ModelName)
-		if modelName == "" {
-			continue
-		}
-		summary := summariesByModel[modelName]
-		summary.ModelName = modelName
-		summary.InputTokens += row.InputTokens
-		summary.OutputTokens += row.OutputTokens
-		summary.CacheCreationTokens += row.CacheCreationTokens
-		summary.CacheReadTokens += row.CacheReadTokens
-		summary.TokenMetricsCount += row.TokenMetricsCount
-		summariesByModel[modelName] = summary
-	}
-	summaries := make([]ModelTokenMetricsSummary, 0, len(summariesByModel))
-	for _, summary := range summariesByModel {
-		summaries = append(summaries, summary)
-	}
-	sort.Slice(summaries, func(i, j int) bool { return summaries[i].ModelName < summaries[j].ModelName })
-	return summaries, nil
+	return nil, fmt.Errorf("quota data changed while reading model metrics")
 }
 
 func GetModelTokenMetricNames() ([]string, error) {
