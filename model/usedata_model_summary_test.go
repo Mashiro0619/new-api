@@ -84,8 +84,8 @@ func TestIncrementProhibitedWordHitsDeduplicatesAndIncrements(t *testing.T) {
 func TestGetProhibitedWordSummaryIncludesUsersWithoutHits(t *testing.T) {
 	truncateTables(t)
 	users := []User{
-		{Username: "hit-user", Password: "password", Role: 1, Status: 1},
-		{Username: "quiet-user", Password: "password", Role: 1, Status: 1},
+		{Username: "hit-user", Password: "password", Role: 1, Status: 1, AffCode: "hit-user-code"},
+		{Username: "quiet-user", Password: "password", Role: 1, Status: 1, AffCode: "quiet-user-code"},
 	}
 	require.NoError(t, DB.Create(&users).Error)
 	require.NoError(t, IncrementProhibitedWordHits(users[0].Id, []string{"alpha"}))
