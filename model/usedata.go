@@ -64,7 +64,10 @@ func (summary ModelTokenMetricsSummary) TotalTokens() int64 {
 }
 
 func (summary ModelTokenMetricsSummary) CacheHitRate() *float64 {
-	denominator := float64(max(summary.InputTokens, 0)) + float64(max(summary.CacheReadTokens, 0))
+	if summary.CacheReadTokens <= 0 {
+		return nil
+	}
+	denominator := float64(max(summary.InputTokens, 0)) + float64(summary.CacheReadTokens)
 	if denominator <= 0 {
 		return nil
 	}
