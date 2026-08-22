@@ -16,29 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export type SiteModelCallSummary = {
-  model_name: string
-  request_count: number
-  success_count: number
-  failure_count: number
-  success_rate: number
-  input_tokens: number | null
-  output_tokens: number | null
-  cache_creation_tokens: number | null
-  cache_read_tokens: number | null
-  total_tokens: number | null
-  cache_hit_rate: number | null
-  token_metrics_count: number
-}
+import { describe, expect, it } from 'vitest'
 
-export type SiteModelCallsResponse = {
-  success: boolean
-  message?: string
-  data: SiteModelCallSummary[]
-}
+import { formatNullableNumber, formatNullablePercent } from '../format'
 
-export type SiteModelCallModelsResponse = {
-  success: boolean
-  message?: string
-  data: string[]
-}
+describe('site model calls display formatting', () => {
+  it('distinguishes null metrics from real zero values', () => {
+    expect(formatNullableNumber(null)).toBe('--')
+    expect(formatNullableNumber(0)).toBe('0')
+    expect(formatNullablePercent(null)).toBe('--')
+    expect(formatNullablePercent(0)).toBe('0.00%')
+  })
+})

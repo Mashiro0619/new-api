@@ -272,26 +272,35 @@ func QuerySiteSummary(selected []string) ([]SiteModelSummary, error) {
 			successRate = float64(total.successCount) / float64(total.requestCount) * 100
 		}
 		var totalTokens *int64
+		var inputTokens *int64
+		var outputTokens *int64
+		var cacheCreationTokens *int64
 		var cacheReadTokens *int64
 		var cacheHitRate *float64
 		if token, ok := tokenTotals[name]; ok && token.TokenMetricsCount > 0 {
-			totalValue := token.InputTokens + token.OutputTokens + token.CacheCreationTokens + token.CacheReadTokens
+			inputValue := token.InputTokens
+			inputTokens = &inputValue
+			outputValue := token.OutputTokens
+			outputTokens = &outputValue
+			cacheCreationValue := token.CacheCreationTokens
+			cacheCreationTokens = &cacheCreationValue
+			totalValue := token.TotalTokens()
 			totalTokens = &totalValue
 			cacheReadValue := token.CacheReadTokens
 			cacheReadTokens = &cacheReadValue
-			if denominator := float64(token.InputTokens + token.CacheReadTokens); denominator > 0 {
-				rate := float64(token.CacheReadTokens) / denominator * 100
-				cacheHitRate = &rate
-			}
+			cacheHitRate = token.CacheHitRate()
 		}
 		result = append(result, SiteModelSummary{
 			ModelName:    name,
 			RequestCount: total.requestCount,
 			SuccessCount: total.successCount,
 			FailureCount: total.requestCount - total.successCount,
-			SuccessRate:  math.Round(successRate*100) / 100,
-			TotalTokens: totalTokens,
+			SuccessRate: math.Round(successRate*100) / 100,
+			InputTokens: inputTokens,
+			OutputTokens: outputTokens,
+			CacheCreationTokens: cacheCreationTokens,
 			CacheReadTokens: cacheReadTokens,
+			TotalTokens: totalTokens,
 			CacheHitRate: cacheHitRate,
 			TokenMetricsCount: tokenTotals[name].TokenMetricsCount,
 		})

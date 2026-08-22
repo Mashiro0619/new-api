@@ -2,6 +2,9 @@ package model
 
 import (
 	"fmt"
+	"math"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -43,34 +46,213 @@ type TokenMetrics struct {
 }
 
 type ModelTokenMetricsSummary struct {
-	ModelName         string `json:"model_name"`
-	InputTokens       int64  `json:"input_tokens"`
-	OutputTokens      int64  `json:"output_tokens"`
+	ModelName           string `json:"model_name"`
+	InputTokens         int64  `json:"input_tokens"`
+	OutputTokens        int64  `json:"output_tokens"`
 	CacheCreationTokens int64 `json:"cache_creation_tokens"`
-	CacheReadTokens   int64  `json:"cache_read_tokens"`
-	TokenMetricsCount int64  `json:"token_metrics_count"`
+	CacheReadTokens     int64  `json:"cache_read_tokens"`
+	TokenMetricsCount   int64  `json:"token_metrics_count"`
 }
 
-func GetModelTokenMetricsSummaries() ([]ModelTokenMetricsSummary, error) {
-	var summaries []ModelTokenMetricsSummary
+func (summary ModelTokenMetricsSummary) TotalTokens() int64 {
+	return saturatingTokenSum(
+		summary.InputTokens,
+		summary.OutputTokens,
+		summary.CacheCreationTokens,
+		summary.CacheReadTokens,
+	)
+}
+
+func (summary ModelTokenMetricsSummary) CacheHitRate() *float64 {
+	denominator := float64(max(summary.InputTokens, 0)) + float64(max(summary.CacheReadTokens, 0))
+	if denominator <= 0 {
+		return nil
+	}
+	rate := float64(summary.CacheReadTokens) / denominator * 100
+	return &rate
+}
+
+func saturatingTokenSum(values ...int64) int64 {
+	var total int64
+	for _, value := range values {
+		if value <= 0 {
+			continue
+		}
+		if total > math.MaxInt64-value {
+			return math.MaxInt64
+		}
+		total += value
+	}
+	return total
+}
+
+func queryModelTokenMetricsRows() ([]ModelTokenMetricsSummary, error) {
+	var rows []ModelTokenMetricsSummary
 	err := DB.Table("quota_data").
 		Select("model_name, SUM(input_tokens) as input_tokens, SUM(output_tokens) as output_tokens, SUM(cache_creation_tokens) as cache_creation_tokens, SUM(cache_read_tokens) as cache_read_tokens, SUM(token_metrics_count) as token_metrics_count").
 		Where("model_name <> '' AND token_metrics_count > 0").
 		Group("model_name").
 		Having("SUM(token_metrics_count) > 0").
 		Order("model_name ASC").
-		Find(&summaries).Error
-	return summaries, err
+		Find(&rows).Error
+	return rows, err
+}
+
+func snapshotCacheQuotaData() (uint64, []QuotaData) {
+	CacheQuotaDataLock.Lock()
+	defer CacheQuotaDataLock.Unlock()
+
+	rows := make([]QuotaData, 0, len(CacheQuotaData))
+	for _, row := range CacheQuotaData {
+		if row != nil {
+			rows = append(rows, *row)
+		}
+	}
+	return cacheQuotaDataVersion, rows
+}
+
+func cacheQuotaDataVersionChanged(version uint64) bool {
+	CacheQuotaDataLock.Lock()
+	defer CacheQuotaDataLock.Unlock()
+	return cacheQuotaDataVersion != version
+}
+
+func GetModelTokenMetricsSummaries() ([]ModelTokenMetricsSummary, error) {
+	for attempt := 0; attempt < 3; attempt++ {
+		version, cachedRows := snapshotCacheQuotaData()
+		rows, err := queryModelTokenMetricsRows()
+		if err != nil {
+			return nil, err
+		}
+		if cacheQuotaDataVersionChanged(version) {
+			continue
+		}
+
+		summariesByModel := make(map[string]ModelTokenMetricsSummary, len(rows))
+		for _, row := range rows {
+			summariesByModel[row.ModelName] = row
+		}
+		for _, row := range cachedRows {
+			if row.TokenMetricsCount <= 0 {
+				continue
+			}
+			modelName := strings.TrimSpace(row.ModelName)
+			if modelName == "" {
+				continue
+			}
+			summary := summariesByModel[modelName]
+			summary.ModelName = modelName
+			summary.InputTokens += row.InputTokens
+			summary.OutputTokens += row.OutputTokens
+			summary.CacheCreationTokens += row.CacheCreationTokens
+			summary.CacheReadTokens += row.CacheReadTokens
+			summary.TokenMetricsCount += row.TokenMetricsCount
+			summariesByModel[modelName] = summary
+		}
+
+		summaries := make([]ModelTokenMetricsSummary, 0, len(summariesByModel))
+		for _, summary := range summariesByModel {
+			summaries = append(summaries, summary)
+		}
+		sort.Slice(summaries, func(i, j int) bool {
+			return summaries[i].ModelName < summaries[j].ModelName
+		})
+		return summaries, nil
+	}
+
+	// A continuously busy instance can keep changing the cache version. Return
+	// one bounded snapshot rather than starving the read indefinitely.
+	version, cachedRows := snapshotCacheQuotaData()
+	rows, err := queryModelTokenMetricsRows()
+	if err != nil {
+		return nil, err
+	}
+	_ = version
+	summariesByModel := make(map[string]ModelTokenMetricsSummary, len(rows))
+	for _, row := range rows {
+		summariesByModel[row.ModelName] = row
+	}
+	for _, row := range cachedRows {
+		if row.TokenMetricsCount <= 0 {
+			continue
+		}
+		modelName := strings.TrimSpace(row.ModelName)
+		if modelName == "" {
+			continue
+		}
+		summary := summariesByModel[modelName]
+		summary.ModelName = modelName
+		summary.InputTokens += row.InputTokens
+		summary.OutputTokens += row.OutputTokens
+		summary.CacheCreationTokens += row.CacheCreationTokens
+		summary.CacheReadTokens += row.CacheReadTokens
+		summary.TokenMetricsCount += row.TokenMetricsCount
+		summariesByModel[modelName] = summary
+	}
+	summaries := make([]ModelTokenMetricsSummary, 0, len(summariesByModel))
+	for _, summary := range summariesByModel {
+		summaries = append(summaries, summary)
+	}
+	sort.Slice(summaries, func(i, j int) bool { return summaries[i].ModelName < summaries[j].ModelName })
+	return summaries, nil
 }
 
 func GetModelTokenMetricNames() ([]string, error) {
+	for attempt := 0; attempt < 3; attempt++ {
+		version, cachedRows := snapshotCacheQuotaData()
+		var names []string
+		err := DB.Table("quota_data").
+			Where("model_name <> '' AND token_metrics_count > 0").
+			Distinct("model_name").
+			Order("model_name ASC").
+			Pluck("model_name", &names).Error
+		if err != nil {
+			return nil, err
+		}
+		if cacheQuotaDataVersionChanged(version) {
+			continue
+		}
+		seen := make(map[string]struct{}, len(names)+len(cachedRows))
+		for _, name := range names {
+			seen[name] = struct{}{}
+		}
+		for _, row := range cachedRows {
+			if row.TokenMetricsCount > 0 && strings.TrimSpace(row.ModelName) != "" {
+				seen[row.ModelName] = struct{}{}
+			}
+		}
+		result := make([]string, 0, len(seen))
+		for name := range seen {
+			result = append(result, name)
+		}
+		sort.Strings(result)
+		return result, nil
+	}
+	_, cachedRows := snapshotCacheQuotaData()
 	var names []string
-	err := DB.Table("quota_data").
+	if err := DB.Table("quota_data").
 		Where("model_name <> '' AND token_metrics_count > 0").
 		Distinct("model_name").
 		Order("model_name ASC").
-		Pluck("model_name", &names).Error
-	return names, err
+		Pluck("model_name", &names).Error; err != nil {
+		return nil, err
+	}
+	seen := make(map[string]struct{}, len(names)+len(cachedRows))
+	for _, name := range names {
+		seen[name] = struct{}{}
+	}
+	for _, row := range cachedRows {
+		modelName := strings.TrimSpace(row.ModelName)
+		if row.TokenMetricsCount > 0 && modelName != "" {
+			seen[modelName] = struct{}{}
+		}
+	}
+	result := make([]string, 0, len(seen))
+	for name := range seen {
+		result = append(result, name)
+	}
+	sort.Strings(result)
+	return result, nil
 }
 
 func NormalizeTokenMetrics(inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens int64, inputAlreadySeparated bool) TokenMetrics {
@@ -125,6 +307,7 @@ func UpdateQuotaData() {
 
 var CacheQuotaData = make(map[string]*QuotaData)
 var CacheQuotaDataLock = sync.Mutex{}
+var cacheQuotaDataVersion uint64
 
 func logQuotaDataCache(quotaData *QuotaData) {
 	key := fmt.Sprintf("%d\x00%s\x00%s\x00%d\x00%s\x00%d\x00%s\x00%d\x00%s",
@@ -154,6 +337,7 @@ func logQuotaDataCache(quotaData *QuotaData) {
 		quotaData = cachedQuotaData
 	}
 	CacheQuotaData[key] = quotaData
+	cacheQuotaDataVersion++
 }
 
 func LogQuotaData(params QuotaDataLogParams) {
@@ -210,6 +394,7 @@ func SaveQuotaDataCache() {
 		}
 	}
 	CacheQuotaData = make(map[string]*QuotaData)
+	cacheQuotaDataVersion++
 	common.SysLog(fmt.Sprintf("保存数据看板数据成功，共保存%d条数据", size))
 }
 

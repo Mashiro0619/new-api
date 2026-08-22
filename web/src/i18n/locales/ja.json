@@ -1208,6 +1208,7 @@
     "Creem products must be a JSON array": "Creem 製品は JSON 配列でなければなりません",
     "Cross-group": "グループ横断",
     "Cross-group retry": "グループ横断リトライ",
+    "Cumulative calls and usage metrics retained by the system.": "システムに保持されている累積呼び出しと使用量を表示します。",
     "Cumulative calls retained by performance monitoring.": "パフォーマンス監視に保持されている累積呼び出しを表示します。",
     "Currency": "通貨",
     "Currency & Display": "通貨と表示",

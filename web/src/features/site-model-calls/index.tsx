@@ -28,16 +28,11 @@ import { useStatus } from '@/hooks/use-status'
 
 import { getSiteModelCallModels, getSiteModelCallSummary } from './api'
 import { parseSiteModelCallsConfig } from './config'
-
-const numberFormatter = new Intl.NumberFormat()
-
-function formatNullableNumber(value: number | null): string {
-  return value == null ? '--' : numberFormatter.format(value)
-}
-
-function formatNullablePercent(value: number | null): string {
-  return value == null ? '--' : `${value.toFixed(2)}%`
-}
+import {
+  formatNullableNumber,
+  formatNullablePercent,
+  numberFormatter,
+} from './format'
 
 export function SiteModelCalls() {
   const { t } = useTranslation()
@@ -71,9 +66,13 @@ export function SiteModelCalls() {
             success_count: 0,
             failure_count: 0,
             success_rate: 0,
-            total_tokens: null,
+            input_tokens: null,
+            output_tokens: null,
+            cache_creation_tokens: null,
             cache_read_tokens: null,
+            total_tokens: null,
             cache_hit_rate: null,
+            token_metrics_count: 0,
           }
       )
       .sort((a, b) => {
@@ -117,6 +116,7 @@ export function SiteModelCalls() {
     body = (
       <div className='min-h-0 flex-1 overflow-auto'>
         <StaticDataTable
+          tableClassName='min-w-[1280px]'
           data={rows}
           getRowKey={(row) => row.model_name}
           columns={[
@@ -125,6 +125,48 @@ export function SiteModelCalls() {
               header: t('Model'),
               cellClassName: 'font-medium',
               cell: (row) => row.model_name,
+            },
+            {
+              id: 'input-tokens',
+              header: t('Input Tokens'),
+              className: 'text-right',
+              cellClassName: 'text-right tabular-nums',
+              cell: (row) => formatNullableNumber(row.input_tokens),
+            },
+            {
+              id: 'output-tokens',
+              header: t('Output Tokens'),
+              className: 'text-right',
+              cellClassName: 'text-right tabular-nums',
+              cell: (row) => formatNullableNumber(row.output_tokens),
+            },
+            {
+              id: 'cache-creation',
+              header: t('Cache Creation'),
+              className: 'text-right',
+              cellClassName: 'text-right tabular-nums',
+              cell: (row) => formatNullableNumber(row.cache_creation_tokens),
+            },
+            {
+              id: 'cache-read',
+              header: t('Cache Read'),
+              className: 'text-right',
+              cellClassName: 'text-right tabular-nums',
+              cell: (row) => formatNullableNumber(row.cache_read_tokens),
+            },
+            {
+              id: 'tokens',
+              header: t('Total Tokens'),
+              className: 'text-right',
+              cellClassName: 'text-right tabular-nums',
+              cell: (row) => formatNullableNumber(row.total_tokens),
+            },
+            {
+              id: 'cache-rate',
+              header: t('Cache Hit Rate'),
+              className: 'text-right',
+              cellClassName: 'text-right tabular-nums',
+              cell: (row) => formatNullablePercent(row.cache_hit_rate),
             },
             {
               id: 'success',
@@ -154,20 +196,6 @@ export function SiteModelCalls() {
               cellClassName: 'text-right tabular-nums',
               cell: (row) => `${row.success_rate.toFixed(2)}%`,
             },
-            {
-              id: 'tokens',
-              header: t('Total Tokens'),
-              className: 'text-right',
-              cellClassName: 'text-right tabular-nums',
-              cell: (row) => formatNullableNumber(row.total_tokens),
-            },
-            {
-              id: 'cache-rate',
-              header: t('Cache Hit Rate'),
-              className: 'text-right',
-              cellClassName: 'text-right tabular-nums',
-              cell: (row) => formatNullablePercent(row.cache_hit_rate),
-            },
           ]}
         />
       </div>
@@ -194,7 +222,7 @@ export function SiteModelCalls() {
       <SectionPageLayout.Content>
         <div className='flex h-full min-h-0 flex-col gap-3'>
           <p className='text-muted-foreground text-sm'>
-            {t('Cumulative calls retained by performance monitoring.')}
+            {t('Cumulative calls and usage metrics retained by the system.')}
           </p>
           {body}
         </div>

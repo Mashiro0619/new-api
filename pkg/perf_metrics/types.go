@@ -61,15 +61,18 @@ type SummaryAllResult struct {
 }
 
 type SiteModelSummary struct {
-	ModelName       string  `json:"model_name"`
-	RequestCount    int64   `json:"request_count"`
-	SuccessCount    int64   `json:"success_count"`
-	FailureCount    int64   `json:"failure_count"`
-	SuccessRate     float64 `json:"success_rate"`
-	TotalTokens     *int64  `json:"total_tokens"`
-	CacheReadTokens *int64  `json:"cache_read_tokens"`
-	CacheHitRate    *float64 `json:"cache_hit_rate"`
-	TokenMetricsCount int64 `json:"token_metrics_count"`
+	ModelName           string   `json:"model_name"`
+	RequestCount        int64    `json:"request_count"`
+	SuccessCount        int64    `json:"success_count"`
+	FailureCount        int64    `json:"failure_count"`
+	SuccessRate         float64  `json:"success_rate"`
+	InputTokens         *int64   `json:"input_tokens"`
+	OutputTokens        *int64   `json:"output_tokens"`
+	CacheCreationTokens *int64  `json:"cache_creation_tokens"`
+	CacheReadTokens     *int64  `json:"cache_read_tokens"`
+	TotalTokens         *int64   `json:"total_tokens"`
+	CacheHitRate        *float64 `json:"cache_hit_rate"`
+	TokenMetricsCount   int64    `json:"token_metrics_count"`
 }
 
 type bucketKey struct {

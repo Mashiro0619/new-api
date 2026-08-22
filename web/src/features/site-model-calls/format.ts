@@ -16,29 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export type SiteModelCallSummary = {
-  model_name: string
-  request_count: number
-  success_count: number
-  failure_count: number
-  success_rate: number
-  input_tokens: number | null
-  output_tokens: number | null
-  cache_creation_tokens: number | null
-  cache_read_tokens: number | null
-  total_tokens: number | null
-  cache_hit_rate: number | null
-  token_metrics_count: number
+const numberFormatter = new Intl.NumberFormat()
+
+export function formatNullableNumber(value: number | null): string {
+  return value == null ? '--' : numberFormatter.format(value)
 }
 
-export type SiteModelCallsResponse = {
-  success: boolean
-  message?: string
-  data: SiteModelCallSummary[]
+export function formatNullablePercent(value: number | null): string {
+  return value == null ? '--' : `${value.toFixed(2)}%`
 }
 
-export type SiteModelCallModelsResponse = {
-  success: boolean
-  message?: string
-  data: string[]
-}
+export { numberFormatter }

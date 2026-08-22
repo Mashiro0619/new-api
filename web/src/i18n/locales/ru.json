@@ -1208,6 +1208,7 @@
     "Creem products must be a JSON array": "Продукты Creem должны быть JSON-массивом",
     "Cross-group": "Межгрупповой",
     "Cross-group retry": "Повтор между группами",
+    "Cumulative calls and usage metrics retained by the system.": "Суммарные вызовы и показатели использования, сохранённые системой.",
     "Cumulative calls retained by performance monitoring.": "Суммарные вызовы, сохранённые мониторингом производительности.",
     "Currency": "Валюта",
     "Currency & Display": "Валюта и отображение",
